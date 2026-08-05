@@ -102,35 +102,35 @@ export function ContentCard({
                 alt={content.title}
                 fill
                 className="object-cover rounded-lg transition-transform duration-300 group-hover:scale-105"
-                sizes="(max-width: 640px) 33vw, (max-width: 768px) 25vw, (max-width: 1024px) 20vw, (max-width: 1280px) 16vw, 12.5vw" // Keep responsive sizes
+                sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, (max-width: 1024px) 25vw, 16vw"
                 unoptimized
                 priority={priority}
               />
-              <div className="absolute top-2 left-2 z-10 flex flex-col gap-1 items-start">
+              <div className="absolute top-1.5 left-1.5 z-10 flex flex-wrap gap-1 items-start max-w-[90%]">
                 {content.quality?.map(q => (
-                  <Badge key={q} variant="secondary" className="text-[10px] px-1 h-5">{q}</Badge>
+                  <Badge key={q} variant="secondary" className="text-[9px] sm:text-[10px] px-1 h-4 sm:h-5 py-0">{q}</Badge>
                 ))}
                 {content.languages?.map(lang => (
-                  <Badge key={lang} variant="default" className="text-[10px] px-1 h-5">{lang}</Badge>
+                  <Badge key={lang} variant="default" className="text-[9px] sm:text-[10px] px-1 h-4 sm:h-5 py-0">{lang}</Badge>
                 ))}
                 {!content.languages?.length && content.isHindiDubbed && (
-                  <Badge variant="secondary" className="text-[10px] px-1 h-5">Hindi Dubbed</Badge>
+                  <Badge variant="secondary" className="text-[9px] sm:text-[10px] px-1 h-4 sm:h-5 py-0">Hindi Dubbed</Badge>
                 )}
               </div>
-              <div className="absolute bottom-2 right-2 z-10">
+              <div className="absolute bottom-1.5 right-1.5 z-10">
                 {content.type === 'tv' && content.numberOfSeasons && (
-                  <Badge variant="secondary" className="text-[10px] px-1 h-5 bg-black/60 hover:bg-black/70 text-white border-0 backdrop-blur-sm">
+                  <Badge variant="secondary" className="text-[9px] sm:text-[10px] px-1 h-4 sm:h-5 bg-black/60 hover:bg-black/70 text-white border-0 backdrop-blur-sm py-0">
                     {content.numberOfSeasons} {content.numberOfSeasons === 1 ? 'Season' : 'Seasons'}
                   </Badge>
                 )}
                 {content.type === 'movie' && content.runtime && (
-                  <Badge variant="secondary" className="text-[10px] px-1 h-5 bg-black/60 hover:bg-black/70 text-white border-0 backdrop-blur-sm">
+                  <Badge variant="secondary" className="text-[9px] sm:text-[10px] px-1 h-4 sm:h-5 bg-black/60 hover:bg-black/70 text-white border-0 backdrop-blur-sm py-0">
                     {Math.floor(content.runtime / 60)}h {content.runtime % 60}m
                   </Badge>
                 )}
               </div>
               <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center rounded-lg">
-                <PlayCircle className="w-12 h-12 text-primary" />
+                <PlayCircle className="w-10 h-10 sm:w-12 sm:h-12 text-primary" />
               </div>
             </div>
           </CardContent>
@@ -139,9 +139,9 @@ export function ContentCard({
 
       {adminControls}
 
-      <div className="mt-2 space-y-1">
-        <h3 className="font-semibold text-sm truncate">{content.title}</h3>
-        <div className="flex items-center justify-between text-xs text-muted-foreground">
+      <div className="mt-1.5 sm:mt-2 space-y-0.5 sm:space-y-1">
+        <h3 className="font-semibold text-xs sm:text-sm truncate">{content.title}</h3>
+        <div className="flex items-center justify-between text-[11px] sm:text-xs text-muted-foreground">
           <div className="flex items-center gap-2">
             <span>{content.releaseDate.split('-')[0]}</span>
           </div>

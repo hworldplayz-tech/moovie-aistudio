@@ -160,24 +160,24 @@ export default function BrowseClient({
                         <div className="space-y-4">
                             <h2 className="text-2xl font-bold">Featured Movies & TV</h2>
                             {featuredLayout === 'grid' ? (
-                                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2.5 sm:gap-4">
                                     {initialFeaturedContent.map((item) => (
                                         <ContentCard key={item.id} content={item} />
                                     ))}
                                 </div>
                             ) : (
-                                <div className="flex flex-col space-y-4">
+                                <div className="flex flex-col space-y-3 sm:space-y-4">
                                     {initialFeaturedContent.map((item) => (
-                                        <div key={item.id} className="flex gap-4 p-4 border rounded-lg hover:bg-muted/50 transition-colors">
-                                            <div className="w-[100px] flex-shrink-0">
+                                        <div key={item.id} className="flex gap-3 sm:gap-4 p-3 sm:p-4 border rounded-lg hover:bg-muted/50 transition-colors">
+                                            <div className="w-[80px] sm:w-[100px] flex-shrink-0">
                                                 <ContentCard content={item} className="h-full aspect-[2/3]" />
                                             </div>
-                                            <div className="flex-1 py-2">
-                                                <h3 className="text-xl font-bold mb-2">{item.title}</h3>
-                                                <p className="text-muted-foreground line-clamp-3 mb-4">{item.description}</p>
-                                                <div className="flex gap-2">
+                                            <div className="flex-1 py-1 sm:py-2">
+                                                <h3 className="text-base sm:text-xl font-bold mb-1 sm:mb-2 line-clamp-1">{item.title}</h3>
+                                                <p className="text-xs sm:text-sm text-muted-foreground line-clamp-2 sm:line-clamp-3 mb-2 sm:mb-4">{item.description}</p>
+                                                <div className="flex flex-wrap gap-1.5 sm:gap-2">
                                                     {item.genres.slice(0, 3).map(g => (
-                                                        <span key={g} className="text-xs px-2 py-1 bg-secondary rounded-full">{g}</span>
+                                                        <span key={g} className="text-[10px] sm:text-xs px-2 py-0.5 bg-secondary rounded-full">{g}</span>
                                                     ))}
                                                 </div>
                                             </div>
@@ -233,7 +233,7 @@ export default function BrowseClient({
                     </div>
                 ) : (
                     <div className={cn(
-                        "grid gap-4",
+                        "grid gap-2.5 sm:gap-4",
                         view === 'grid'
                             ? "grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5"
                             : "grid-cols-1"

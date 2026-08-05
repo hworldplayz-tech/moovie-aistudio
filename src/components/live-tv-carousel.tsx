@@ -46,43 +46,42 @@ export function LiveTvCarousel({ channels }: LiveTvCarouselProps) {
                     align: 'start',
                 }}
             >
-                <CarouselContent className="-ml-4">
+                <CarouselContent className="-ml-3 sm:-ml-4">
                     {channels.map((channel, index) => (
-                        <CarouselItem key={channel.id} className="pl-4 md:basis-1/2 lg:basis-1/3">
-                            <div className="relative aspect-video rounded-xl overflow-hidden group border border-border/50 shadow-md">
-                                {/* Background Gradient / Placeholder since we might not have images */}
+                        <CarouselItem key={channel.id} className="pl-3 sm:pl-4 basis-[82%] sm:basis-1/2 md:basis-1/3 lg:basis-1/4">
+                            <div className="relative aspect-video rounded-xl overflow-hidden group border border-border/50 shadow-md bg-black">
                                 {/* Poster Image or Placeholder */}
                                 {channel.posterUrl ? (
                                     <img
                                         src={channel.posterUrl}
                                         alt={channel.title}
-                                        className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                                        className="absolute inset-0 w-full h-full object-cover object-center transition-transform duration-500 group-hover:scale-105"
                                     />
                                 ) : (
                                     <div className="absolute inset-0 bg-gradient-to-br from-gray-900 to-gray-800" />
                                 )}
 
-                                {/* Dynamic gradient overlay on hover */}
-                                <div className="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-transparent opacity-90" />
+                                {/* Dynamic gradient overlay */}
+                                <div className="absolute inset-0 bg-gradient-to-t from-black via-black/60 to-transparent opacity-90" />
 
-                                <div className="absolute inset-0 flex flex-col justify-end p-6">
-                                    <div className="flex items-center justify-between mb-2">
-                                        <Badge variant="default" className="bg-primary/80 backdrop-blur-sm text-primary-foreground">
+                                <div className="absolute inset-0 flex flex-col justify-end p-3.5 sm:p-5">
+                                    <div className="flex items-center justify-between mb-1 sm:mb-2">
+                                        <Badge variant="default" className="bg-primary/90 backdrop-blur-sm text-primary-foreground text-[10px] sm:text-xs px-1.5 py-0 h-4 sm:h-5">
                                             Live
                                         </Badge>
-                                        <Badge variant="outline" className="text-white border-white/20 backdrop-blur-sm">
+                                        <Badge variant="outline" className="text-white border-white/20 backdrop-blur-sm text-[10px] sm:text-xs px-1.5 py-0 h-4 sm:h-5">
                                             {channel.country}
                                         </Badge>
                                     </div>
 
-                                    <h3 className="text-xl font-bold text-white mb-1 line-clamp-1">{channel.title}</h3>
-                                    <p className="text-sm text-gray-300 line-clamp-2 mb-4">
+                                    <h3 className="text-base sm:text-lg font-bold text-white mb-0.5 sm:mb-1 line-clamp-1">{channel.title}</h3>
+                                    <p className="text-xs sm:text-sm text-gray-300 line-clamp-1 sm:line-clamp-2 mb-2 sm:mb-3">
                                         {channel.description || 'Watch live streaming now.'}
                                     </p>
 
-                                    <Button asChild size="sm" className="w-full transition-transform duration-300 group-hover:scale-105">
+                                    <Button asChild size="sm" className="w-full text-xs h-7 sm:h-8 transition-transform duration-300 group-hover:scale-105">
                                         <Link href={`/live-tv/${channel.id}`}>
-                                            <PlayCircle className="mr-2 h-4 w-4" />
+                                            <PlayCircle className="mr-1.5 h-3.5 w-3.5" />
                                             Watch Now
                                         </Link>
                                     </Button>

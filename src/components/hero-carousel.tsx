@@ -39,43 +39,49 @@ export function HeroCarousel({ content }: HeroCarouselProps) {
       <CarouselContent>
         {content.map((item, index) => (
           <CarouselItem key={item.id}>
-            <div className="relative h-[48vh] sm:h-[60vh] md:h-[80vh] w-full max-w-full overflow-hidden rounded-xl">
+            <div className="relative h-[320px] sm:h-[420px] md:h-[65vh] lg:h-[75vh] w-full max-w-full overflow-hidden rounded-xl">
               <Image
                 src={item.backdropPath}
                 alt={item.title}
                 fill
-                className="object-cover"
+                className="object-cover object-top md:object-center"
                 priority={index === 0}
                 loading={index === 0 ? "eager" : "lazy"}
                 quality={85}
                 data-ai-hint="dramatic landscape"
                 sizes="(max-width: 768px) 100vw, 80vw"
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-background via-background/70 to-transparent" />
-              <div className="absolute inset-0 bg-gradient-to-r from-background via-transparent to-transparent" />
-              <div className="absolute bottom-0 left-0 p-3 sm:p-4 md:p-8 lg:p-12 w-full md:w-2/3 lg:w-1/2">
-                <h1 className="text-xl sm:text-3xl md:text-5xl lg:text-6xl font-bold text-foreground drop-shadow-lg line-clamp-2">
+              <div className="absolute inset-0 bg-gradient-to-t from-background via-background/60 to-transparent" />
+              <div className="absolute inset-0 bg-gradient-to-r from-background/90 via-background/40 to-transparent" />
+              <div className="absolute bottom-0 left-0 p-4 sm:p-6 md:p-10 lg:p-12 w-full md:w-3/4 lg:w-1/2 flex flex-col justify-end">
+                <h1 className="text-xl sm:text-3xl md:text-4xl lg:text-5xl font-bold text-foreground drop-shadow-lg line-clamp-2">
                   {item.title}
                 </h1>
-                <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-muted-foreground text-sm md:text-base">
+                <div className="mt-2 sm:mt-3 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-muted-foreground text-xs sm:text-sm md:text-base">
                   <span>{(item.releaseDate || 'N/A').split('-')[0]}</span>
                   <div className="flex items-center gap-1">
-                    <Star className="w-4 h-4 text-yellow-400 fill-yellow-400" />
+                    <Star className="w-3.5 h-3.5 text-yellow-400 fill-yellow-400" />
                     <span>{item.rating.toFixed(1)}</span>
                   </div>
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap gap-1.5">
                     {item.genres.slice(0, 3).map(genre => (
-                      <Badge key={genre} variant="secondary" className="text-xs">{genre}</Badge>
+                      <Badge key={genre} variant="secondary" className="text-[11px] sm:text-xs py-0 h-5">{genre}</Badge>
                     ))}
                   </div>
                 </div>
-                <p className="mt-4 text-sm md:text-base text-muted-foreground max-w-xl line-clamp-3">
+                <p className="mt-2 text-xs sm:text-sm md:text-base text-muted-foreground/90 max-w-xl line-clamp-2 sm:line-clamp-3">
                   {item.description}
                 </p>
-                <div className="mt-6 flex items-center gap-4">
-                  <Button asChild size="lg">
+                <div className="mt-3 sm:mt-5 flex items-center gap-3">
+                  <Button asChild size="sm" className="sm:hidden">
                     <Link href={`/watch/${item.id}-${slugify(item.title)}`}>
-                      <PlayCircle className="mr-2" />
+                      <PlayCircle className="mr-1.5 h-4 w-4" />
+                      Play Now
+                    </Link>
+                  </Button>
+                  <Button asChild size="lg" className="hidden sm:inline-flex">
+                    <Link href={`/watch/${item.id}-${slugify(item.title)}`}>
+                      <PlayCircle className="mr-2 h-5 w-5" />
                       Play Now
                     </Link>
                   </Button>
