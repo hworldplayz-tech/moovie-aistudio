@@ -44,16 +44,26 @@ function FilterDropdown({
   onValueChange: (value: string) => void;
   extraOptions?: { value: string; label: string }[];
 }) {
+  const isActive = Boolean(value);
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className="h-8 px-1.5 sm:px-2 lg:px-3 text-muted-foreground shrink-0">
-          <Icon className="h-4 w-4" />
-          <span className="ml-2 hidden lg:inline">{label}</span>
-          <ChevronDown className="ml-1 h-3.5 w-3.5" />
+        <Button 
+          variant={isActive ? "secondary" : "ghost"} 
+          size="sm"
+          className="relative h-8 px-2 sm:px-2.5 text-xs text-muted-foreground shrink-0"
+          title={label}
+        >
+          <Icon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+          <span className="ml-1.5 hidden md:inline">{value || label}</span>
+          <ChevronDown className="ml-1 h-3 w-3 opacity-70" />
+          {isActive && (
+            <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-primary" />
+          )}
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent className="w-56">
+      <DropdownMenuContent className="w-56" align="end">
         <DropdownMenuLabel>{label}</DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuRadioGroup value={value} onValueChange={onValueChange}>

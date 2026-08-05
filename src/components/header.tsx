@@ -43,10 +43,8 @@ export function AppHeader() {
           </div>
         </form>
       </div>
-      <div className="hidden sm:flex items-center gap-1 shrink-0">
+      <div className="flex items-center gap-1 shrink-0">
         <HeaderFilters />
-      </div>
-      <div className="shrink-0">
         <ThemeToggle />
       </div>
     </header>
