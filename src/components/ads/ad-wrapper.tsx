@@ -122,7 +122,7 @@ export default function AdWrapper({ adType, position, className = '', lazyLoad =
     return (
         <div
             ref={adRef}
-            className={`ad-container ${className}`}
+            className={`ad-container max-w-full overflow-hidden ${className}`}
             data-ad-type={adType}
             data-ad-position={position}
         >

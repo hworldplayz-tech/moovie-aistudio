@@ -33,7 +33,7 @@ export function ContentCarousel({ title, content }: ContentCarouselProps) {
       >
         <CarouselContent className="-ml-2.5 sm:-ml-4">
           {content.map((item) => (
-            <CarouselItem key={item.id} className="pl-2.5 sm:pl-4 basis-[42%] sm:basis-1/3 md:basis-1/4 lg:basis-1/5 xl:basis-1/6 2xl:basis-1/7">
+            <CarouselItem key={item.id} className="pl-2 sm:pl-3 basis-[31%] sm:basis-1/4 md:basis-1/5 lg:basis-1/6 xl:basis-1/7">
               <ContentCard content={item} />
             </CarouselItem>
           ))}

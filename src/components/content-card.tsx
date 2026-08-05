@@ -106,31 +106,31 @@ export function ContentCard({
                 unoptimized
                 priority={priority}
               />
-              <div className="absolute top-1.5 left-1.5 z-10 flex flex-wrap gap-1 items-start max-w-[90%]">
+              <div className="absolute top-1 left-1 z-10 flex flex-wrap gap-0.5 items-start max-w-[92%]">
                 {content.quality?.map(q => (
-                  <Badge key={q} variant="secondary" className="text-[9px] sm:text-[10px] px-1 h-4 sm:h-5 py-0">{q}</Badge>
+                  <Badge key={q} variant="secondary" className="text-[8px] sm:text-[9px] px-1 h-3.5 sm:h-4 py-0 leading-none">{q}</Badge>
                 ))}
                 {content.languages?.map(lang => (
-                  <Badge key={lang} variant="default" className="text-[9px] sm:text-[10px] px-1 h-4 sm:h-5 py-0">{lang}</Badge>
+                  <Badge key={lang} variant="default" className="text-[8px] sm:text-[9px] px-1 h-3.5 sm:h-4 py-0 leading-none">{lang}</Badge>
                 ))}
                 {!content.languages?.length && content.isHindiDubbed && (
-                  <Badge variant="secondary" className="text-[9px] sm:text-[10px] px-1 h-4 sm:h-5 py-0">Hindi Dubbed</Badge>
+                  <Badge variant="secondary" className="text-[8px] sm:text-[9px] px-1 h-3.5 sm:h-4 py-0 leading-none">Hindi Dubbed</Badge>
                 )}
               </div>
-              <div className="absolute bottom-1.5 right-1.5 z-10">
+              <div className="absolute bottom-1 right-1 z-10">
                 {content.type === 'tv' && content.numberOfSeasons && (
-                  <Badge variant="secondary" className="text-[9px] sm:text-[10px] px-1 h-4 sm:h-5 bg-black/60 hover:bg-black/70 text-white border-0 backdrop-blur-sm py-0">
+                  <Badge variant="secondary" className="text-[8px] sm:text-[9px] px-1 h-3.5 sm:h-4 bg-black/70 text-white border-0 backdrop-blur-sm py-0 leading-none">
                     {content.numberOfSeasons} {content.numberOfSeasons === 1 ? 'Season' : 'Seasons'}
                   </Badge>
                 )}
                 {content.type === 'movie' && content.runtime && (
-                  <Badge variant="secondary" className="text-[9px] sm:text-[10px] px-1 h-4 sm:h-5 bg-black/60 hover:bg-black/70 text-white border-0 backdrop-blur-sm py-0">
+                  <Badge variant="secondary" className="text-[8px] sm:text-[9px] px-1 h-3.5 sm:h-4 bg-black/70 text-white border-0 backdrop-blur-sm py-0 leading-none">
                     {Math.floor(content.runtime / 60)}h {content.runtime % 60}m
                   </Badge>
                 )}
               </div>
               <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center rounded-lg">
-                <PlayCircle className="w-10 h-10 sm:w-12 sm:h-12 text-primary" />
+                <PlayCircle className="w-8 h-8 sm:w-10 sm:h-10 text-primary" />
               </div>
             </div>
           </CardContent>
@@ -139,18 +139,18 @@ export function ContentCard({
 
       {adminControls}
 
-      <div className="mt-1.5 sm:mt-2 space-y-0.5 sm:space-y-1">
-        <h3 className="font-semibold text-xs sm:text-sm truncate">{content.title}</h3>
-        <div className="flex items-center justify-between text-[11px] sm:text-xs text-muted-foreground">
-          <div className="flex items-center gap-2">
-            <span>{content.releaseDate.split('-')[0]}</span>
-          </div>
+      <div className="mt-1 sm:mt-1.5 space-y-0.5">
+        <h3 className="font-semibold text-[11px] sm:text-xs md:text-sm truncate leading-tight">{content.title}</h3>
+        <div className="flex items-center justify-between text-[10px] sm:text-xs text-muted-foreground">
           <div className="flex items-center gap-1">
-            <Star className="w-3 h-3 text-yellow-400 fill-yellow-400" />
-            <span>{content.rating.toFixed(1)}</span>
+            <span>{content.releaseDate ? content.releaseDate.split('-')[0] : ''}</span>
+          </div>
+          <div className="flex items-center gap-0.5">
+            <Star className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-yellow-400 fill-yellow-400" />
+            <span>{content.rating?.toFixed(1) || '0.0'}</span>
           </div>
         </div>
-        <p className="text-xs text-muted-foreground truncate">{content.genres?.[0] || 'N/A'}</p>
+        <p className="text-[10px] sm:text-xs text-muted-foreground/80 truncate">{content.genres?.[0] || 'N/A'}</p>
       </div>
     </div>
   );

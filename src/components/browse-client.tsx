@@ -160,7 +160,7 @@ export default function BrowseClient({
                         <div className="space-y-4">
                             <h2 className="text-2xl font-bold">Featured Movies & TV</h2>
                             {featuredLayout === 'grid' ? (
-                                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2.5 sm:gap-4">
+                                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-2 sm:gap-4">
                                     {initialFeaturedContent.map((item) => (
                                         <ContentCard key={item.id} content={item} />
                                     ))}
@@ -233,9 +233,9 @@ export default function BrowseClient({
                     </div>
                 ) : (
                     <div className={cn(
-                        "grid gap-2.5 sm:gap-4",
+                        "grid gap-2 sm:gap-4",
                         view === 'grid'
-                            ? "grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5"
+                            ? "grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7"
                             : "grid-cols-1"
                     )}>
                         {content.slice(0, visibleCount).map((item, index) => (

@@ -48,12 +48,12 @@ export function UserNav() {
     <div className="p-2">
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" className="relative h-10 w-full justify-start gap-2 px-2">
-            <Avatar className="h-8 w-8">
+          <Button variant="ghost" className="relative h-10 w-full justify-start gap-2 px-2 group-data-[collapsible=icon]:w-10 group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:justify-center">
+            <Avatar className="h-8 w-8 shrink-0">
               <AvatarImage src={user.photoURL || ''} alt={user.displayName || 'User'} />
               <AvatarFallback>{getInitials(user.displayName)}</AvatarFallback>
             </Avatar>
-            <div className="flex flex-col items-start truncate">
+            <div className="flex flex-col items-start truncate group-data-[collapsible=icon]:hidden">
               <span className="text-sm font-medium truncate">{user.displayName || 'User'}</span>
               <span className="text-xs text-muted-foreground truncate">{user.email}</span>
             </div>
