@@ -166,22 +166,9 @@ export default function BrowseClient({
                                     ))}
                                 </div>
                             ) : (
-                                <div className="flex flex-col space-y-3 sm:space-y-4">
+                                <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
                                     {initialFeaturedContent.map((item) => (
-                                        <div key={item.id} className="flex gap-3 sm:gap-4 p-3 sm:p-4 border rounded-lg hover:bg-muted/50 transition-colors">
-                                            <div className="w-[80px] sm:w-[100px] flex-shrink-0">
-                                                <ContentCard content={item} className="h-full aspect-[2/3]" />
-                                            </div>
-                                            <div className="flex-1 py-1 sm:py-2">
-                                                <h3 className="text-base sm:text-xl font-bold mb-1 sm:mb-2 line-clamp-1">{item.title}</h3>
-                                                <p className="text-xs sm:text-sm text-muted-foreground line-clamp-2 sm:line-clamp-3 mb-2 sm:mb-4">{item.description}</p>
-                                                <div className="flex flex-wrap gap-1.5 sm:gap-2">
-                                                    {item.genres.slice(0, 3).map(g => (
-                                                        <span key={g} className="text-[10px] sm:text-xs px-2 py-0.5 bg-secondary rounded-full">{g}</span>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        </div>
+                                        <ContentCard key={item.id} content={item} variant="list" />
                                     ))}
                                 </div>
                             )}
@@ -233,15 +220,16 @@ export default function BrowseClient({
                     </div>
                 ) : (
                     <div className={cn(
-                        "grid gap-2 sm:gap-4",
+                        "grid gap-2.5 sm:gap-4",
                         view === 'grid'
                             ? "grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7"
-                            : "grid-cols-1"
+                            : "grid-cols-1 xl:grid-cols-2 gap-3"
                     )}>
                         {content.slice(0, visibleCount).map((item, index) => (
                             <Fragment key={item.id}>
                                 <ContentCard
                                     content={item}
+                                    variant={view}
                                     priority={index < 8} // Prioritize first 8 images
                                 />
                                 {/* In-Feed Native Ad every 12 items */}
