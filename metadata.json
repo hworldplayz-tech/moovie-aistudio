@@ -1,0 +1,8 @@
+{
+  "name": "Movie & Streaming Platform",
+  "description": "A feature-rich movie and TV streaming web application built with Next.js, Firebase, and Tailwind CSS.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

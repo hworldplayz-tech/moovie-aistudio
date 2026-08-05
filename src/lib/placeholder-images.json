@@ -1,0 +1,94 @@
+{
+  "placeholderImages": [
+    {
+      "id": "hero-backdrop",
+      "description": "A dramatic landscape for the hero section.",
+      "imageUrl": "https://images.unsplash.com/photo-1692262211862-26f4555ef0b7?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxMHx8ZHJhbWF0aWMlMjBsYW5kc2NhcGV8ZW58MHx8fHwxNzYzNjI4MDU4fDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "dramatic landscape"
+    },
+    {
+      "id": "poster-1",
+      "description": "Movie poster 1",
+      "imageUrl": "https://images.unsplash.com/photo-1616530940355-351fabd9524b?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwzfHxtb3ZpZSUyMHBvc3RlcnxlbnwwfHx8fDE3NjM1ODMxNzZ8MA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "movie poster"
+    },
+    {
+      "id": "poster-2",
+      "description": "Movie poster 2",
+      "imageUrl": "https://images.unsplash.com/photo-1763194976473-a6145a368de2?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw1fHxzY2ktZmklMjBtb3ZpZXxlbnwwfHx8fDE3NjM1MTE0OTF8MA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "sci-fi movie"
+    },
+    {
+      "id": "poster-3",
+      "description": "Movie poster 3",
+      "imageUrl": "https://images.unsplash.com/photo-1670073952001-1aafed4bfc02?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw2fHxmYW50YXN5JTIwYXJ0fGVufDB8fHx8MTc2MzU2MTM2Nnww&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "fantasy art"
+    },
+    {
+      "id": "poster-4",
+      "description": "Movie poster 4",
+      "imageUrl": "https://images.unsplash.com/photo-1583498554522-77a3f6cf194a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw4fHxhY3Rpb24lMjBzY2VuZXxlbnwwfHx8fDE3NjM2MjgwNTh8MA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "action scene"
+    },
+    {
+      "id": "poster-5",
+      "description": "Movie poster 5",
+      "imageUrl": "https://images.unsplash.com/photo-1592854899481-f78db4baccb6?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw4fHxkcmFtYSUyMHBvcnRyYWl0fGVufDB8fHx8MTc2MzYyODA1OHww&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "drama portrait"
+    },
+    {
+      "id": "poster-6",
+      "description": "Movie poster 6",
+      "imageUrl": "https://images.unsplash.com/photo-1720795847875-30e5148434b0?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxMHx8Y29tZWR5JTIwZnVubnl8ZW58MHx8fHwxNzYzNTMxMTQ2fDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "comedy funny"
+    },
+    {
+      "id": "poster-7",
+      "description": "Movie poster 7",
+      "imageUrl": "https://images.unsplash.com/photo-1634509319985-32e4750dc78c?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw4fHx0aHJpbGxlciUyMGRhcmt8ZW58MHx8fHwxNzYzNjI4MDU4fDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "thriller dark"
+    },
+    {
+      "id": "poster-8",
+      "description": "Movie poster 8",
+      "imageUrl": "https://images.unsplash.com/photo-1649289887029-75b5f50fcc67?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw3fHxyb21hbmNlJTIwY291cGxlfGVufDB8fHx8MTc2MzU5MjMxNHww&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "romance couple"
+    },
+    {
+      "id": "poster-9",
+      "description": "Movie poster 9",
+      "imageUrl": "https://images.unsplash.com/photo-1603463251925-6ca87bc2f540?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw2fHxhZHZlbnR1cmUlMjBtYXB8ZW58MHx8fHwxNzYzNjI0NjEyfDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "adventure map"
+    },
+    {
+      "id": "poster-10",
+      "description": "Movie poster 10",
+      "imageUrl": "https://images.unsplash.com/photo-1723425613636-47ab8824b804?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw5fHxob3Jyb3IlMjBzcG9va3l8ZW58MHx8fHwxNzYzNjI4MDU4fDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "horror spooky"
+    },
+    {
+      "id": "poster-11",
+      "description": "Movie poster 11",
+      "imageUrl": "https://images.unsplash.com/photo-1763013373583-376c6675a31a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw4fHxteXN0ZXJ5JTIwbm9pcnxlbnwwfHx8fDE3NjM2MjgwNTh8MA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "mystery noir"
+    },
+    {
+      "id": "poster-12",
+      "description": "Movie poster 12",
+      "imageUrl": "https://images.unsplash.com/photo-1439436556258-1f7fab1bfd4f?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwzfHxhbmltYXRpb24lMjBjYXJ0b29ufGVufDB8fHx8MTc2MzU5MjMxNHww&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "animation cartoon"
+    },
+    {
+      "id": "user-avatar-1",
+      "description": "User avatar 1",
+      "imageUrl": "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw2fHxwZXJzb24lMjBwb3J0cmFpdHxlbnwwfHx8fDE3NjM1ODUwMzd8MA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "person portrait"
+    },
+    {
+      "id": "user-avatar-2",
+      "description": "User avatar 2",
+      "imageUrl": "https://images.unsplash.com/photo-1542596768-5d1d21f1cf98?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw2fHxwZXJzb24lMjBzbWlsaW5nfGVufDB8fHx8MTc2MzYxNjMzM3ww&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "person smiling"
+    }
+  ]
+}

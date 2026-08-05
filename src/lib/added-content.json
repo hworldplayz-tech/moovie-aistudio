@@ -1,0 +1,510 @@
+[
+  {
+    "id": "66732",
+    "title": "Stranger Things",
+    "description": "When a young boy vanishes, a small town uncovers a mystery involving secret experiments, terrifying supernatural forces, and one strange little girl.",
+    "posterPath": "https://image.tmdb.org/t/p/w500/cVxVGwHce6xnW8UaVUggaPXbmoE.jpg",
+    "backdropPath": "https://image.tmdb.org/t/p/w1280/56v2KjBlU4XaOv9rVYEQypROD7P.jpg",
+    "genres": [
+      "Sci-Fi & Fantasy",
+      "Mystery",
+      "Action & Adventure"
+    ],
+    "releaseDate": "2016-07-15",
+    "rating": 8.601,
+    "type": "tv",
+    "youtubeTrailerUrl": "https://www.youtube.com/watch?v=PssKpzB0Ah0",
+    "cast": [
+      {
+        "id": 1356210,
+        "name": "Millie Bobby Brown",
+        "character": "Eleven",
+        "profilePath": "https://image.tmdb.org/t/p/w185/yr61C2oLZiUlHmySso2Wc5MTv20.jpg"
+      },
+      {
+        "id": 1920,
+        "name": "Winona Ryder",
+        "character": "Joyce Byers",
+        "profilePath": "https://image.tmdb.org/t/p/w185/8fxYCop2U74EWzm7tjOXM5Xrr7L.jpg"
+      },
+      {
+        "id": 35029,
+        "name": "David Harbour",
+        "character": "Jim Hopper",
+        "profilePath": "https://image.tmdb.org/t/p/w185/qMFtMWlYVtFVyBoBhX5IoA5sN5a.jpg"
+      },
+      {
+        "id": 1442069,
+        "name": "Finn Wolfhard",
+        "character": "Mike Wheeler",
+        "profilePath": "https://image.tmdb.org/t/p/w185/5OVmquAk0W5BIsRlVKslEP497JD.jpg"
+      },
+      {
+        "id": 1653291,
+        "name": "Gaten Matarazzo",
+        "character": "Dustin Henderson",
+        "profilePath": "https://image.tmdb.org/t/p/w185/qOwnmR5gbOT6ygp17YyLlEKXD38.jpg"
+      },
+      {
+        "id": 1474123,
+        "name": "Caleb McLaughlin",
+        "character": "Lucas Sinclair",
+        "profilePath": "https://image.tmdb.org/t/p/w185/4jVS3EziBn7bf97ErxkW7jsdiLM.jpg"
+      },
+      {
+        "id": 1393177,
+        "name": "Noah Schnapp",
+        "character": "Will Byers",
+        "profilePath": "https://image.tmdb.org/t/p/w185/6NIffxe2yZm6OmOwulY19govKRs.jpg"
+      },
+      {
+        "id": 1590797,
+        "name": "Sadie Sink",
+        "character": "Max Mayfield",
+        "profilePath": "https://image.tmdb.org/t/p/w185/vo5x9GRs2vT47LNb1HZvKUEsk8C.jpg"
+      },
+      {
+        "id": 1448222,
+        "name": "Charlie Heaton",
+        "character": "Jonathan Byers",
+        "profilePath": "https://image.tmdb.org/t/p/w185/8Se6WZuvRmoB990bT29OPgVAyBo.jpg"
+      },
+      {
+        "id": 1039011,
+        "name": "Natalia Dyer",
+        "character": "Nancy Wheeler",
+        "profilePath": "https://image.tmdb.org/t/p/w185/cQaa3XEiUTgJxp85VeFYFyblJIH.jpg"
+      }
+    ],
+    "downloadLink": "https://www.whatsuplink.online/country/us",
+    "isHindiDubbed": true,
+    "customTags": []
+  },
+  {
+    "id": "550",
+    "title": "Fight Club",
+    "description": "A ticking-time-bomb insomniac and a slippery soap salesman channel primal male aggression into a shocking new form of therapy. Their concept catches on, with underground \"fight clubs\" forming in every town, until an eccentric gets in the way and ignites an out-of-control spiral toward oblivion.",
+    "posterPath": "https://image.tmdb.org/t/p/w500/pB8BM7pdSp6B6Ih7QZ4DrQ3PmJK.jpg",
+    "backdropPath": "https://image.tmdb.org/t/p/w1280/hZkgoQYus5vegHoetLkCJzb17zJ.jpg",
+    "genres": [
+      "Drama",
+      "Thriller"
+    ],
+    "releaseDate": "1999-10-15",
+    "rating": 8.438,
+    "type": "movie",
+    "youtubeTrailerUrl": "https://www.youtube.com/watch?v=dfeUzm6KF4g",
+    "cast": [
+      {
+        "id": 819,
+        "name": "Edward Norton",
+        "character": "Narrator",
+        "profilePath": "https://image.tmdb.org/t/p/w185/8nytsqL59SFJTVYVrN72k6qkGgJ.jpg"
+      },
+      {
+        "id": 287,
+        "name": "Brad Pitt",
+        "character": "Tyler Durden",
+        "profilePath": "https://image.tmdb.org/t/p/w185/nWyL0YMgsBOsvX4gVSFB16VfnPU.jpg"
+      },
+      {
+        "id": 1283,
+        "name": "Helena Bonham Carter",
+        "character": "Marla Singer",
+        "profilePath": "https://image.tmdb.org/t/p/w185/hJMbNSPJ2PCahsP3rNEU39C8GWU.jpg"
+      },
+      {
+        "id": 7470,
+        "name": "Meat Loaf",
+        "character": "Robert Paulson",
+        "profilePath": "https://image.tmdb.org/t/p/w185/7gKLR1u46OB8WJ6m06LemNBCMx6.jpg"
+      },
+      {
+        "id": 7499,
+        "name": "Jared Leto",
+        "character": "Angel Face",
+        "profilePath": "https://image.tmdb.org/t/p/w185/aNUvy7cpa78NRjCvHi5vYuNJRtj.jpg"
+      },
+      {
+        "id": 7471,
+        "name": "Zach Grenier",
+        "character": "Richard Chesler (Regional Manager)",
+        "profilePath": "https://image.tmdb.org/t/p/w185/fSyQKZO39sUsqY283GXiScOg3Hi.jpg"
+      },
+      {
+        "id": 7497,
+        "name": "Holt McCallany",
+        "character": "The Mechanic",
+        "profilePath": "https://image.tmdb.org/t/p/w185/nHZgHsBc8P69LFTGsDSrZYt2PmS.jpg"
+      },
+      {
+        "id": 7498,
+        "name": "Eion Bailey",
+        "character": "Ricky",
+        "profilePath": "https://image.tmdb.org/t/p/w185/3DW13W47cKk4LQZwS4EvRaNBoVu.jpg"
+      },
+      {
+        "id": 7472,
+        "name": "Richmond Arquette",
+        "character": "Intern at Hospital",
+        "profilePath": "https://image.tmdb.org/t/p/w185/7byGiVac0GjBSVD1h6ylZlVXZK6.jpg"
+      },
+      {
+        "id": 7219,
+        "name": "David Andrews",
+        "character": "Thomas at Remaining Men Together",
+        "profilePath": "https://image.tmdb.org/t/p/w185/36LEerIIN7gpG52mM3Ier7YWDbh.jpg"
+      }
+    ],
+    "isHindiDubbed": false,
+    "customTags": []
+  },
+  {
+    "id": "55555",
+    "title": "JAPAN, Our Homeland",
+    "description": "The 31st year of the Showa Era (1956) marked the tenth year since Japan's defeat in World War II. It was when Japan took its first step out of post-war poverty to rejoin the international community. In old downtown Tokyo, a teacher and her students try to pass down Doyo (Japanese traditional children's songs) as the root of Japanese cultural identity to the future generations.",
+    "posterPath": "https://image.tmdb.org/t/p/w500/isnDEYPiFxxJncExr43arE5ZATk.jpg",
+    "backdropPath": "https://image.tmdb.org/t/p/w1280/ifg0WjVj7LyHGtf4JxhOkonKP0W.jpg",
+    "genres": [
+      "Animation",
+      "Drama"
+    ],
+    "releaseDate": "2007-04-07",
+    "rating": 4.9,
+    "type": "movie",
+    "cast": [
+      {
+        "id": 2906941,
+        "name": "Naoya Sekine",
+        "character": "Akira Yanagizawa",
+        "profilePath": "https://picsum.photos/seed/2906941/185/278"
+      },
+      {
+        "id": 2680913,
+        "name": "Eri Osonoe",
+        "character": "Yayoi Tajima",
+        "profilePath": "https://picsum.photos/seed/2680913/185/278"
+      },
+      {
+        "id": 2906942,
+        "name": "Maika Kawaguchi",
+        "character": "Shizu Miyanaga",
+        "profilePath": "https://picsum.photos/seed/2906942/185/278"
+      },
+      {
+        "id": 2906943,
+        "name": "Tetsuya Kannami",
+        "character": "Teru Yoshimura",
+        "profilePath": "https://picsum.photos/seed/2906943/185/278"
+      },
+      {
+        "id": 2906944,
+        "name": "Kurumi Honta",
+        "character": "Kimiyo Arima",
+        "profilePath": "https://picsum.photos/seed/2906944/185/278"
+      },
+      {
+        "id": 2906945,
+        "name": "Seigo Kuwabara",
+        "character": "Yoshio Kawabata",
+        "profilePath": "https://picsum.photos/seed/2906945/185/278"
+      },
+      {
+        "id": 1357104,
+        "name": "Hikari Yono",
+        "character": "Fukuko Yanagizawa (mother)",
+        "profilePath": "https://image.tmdb.org/t/p/w185/ywltTQeVwiD3yI90vVLcr8zHiCX.jpg"
+      },
+      {
+        "id": 2906947,
+        "name": "Kanon Nagashima",
+        "character": "Reiko Yanagizawa",
+        "profilePath": "https://picsum.photos/seed/2906947/185/278"
+      },
+      {
+        "id": 111373,
+        "name": "Takaya Hashi",
+        "character": "Genji Yanagizawa",
+        "profilePath": "https://image.tmdb.org/t/p/w185/qHt0Q7755oez1yvtShBalcXDv2h.jpg"
+      },
+      {
+        "id": 2906948,
+        "name": "Sayaka Hanamura",
+        "character": "Rieko Sakamoto",
+        "profilePath": "https://image.tmdb.org/t/p/w185/rNIcFBEe67dnjvEcNAMnpkh29Qk.jpg"
+      }
+    ],
+    "isHindiDubbed": false,
+    "customTags": []
+  },
+  {
+    "id": "1622",
+    "title": "Lemming",
+    "description": "After the death of his boss's wife, a young engineer faces the sudden psychological metamorphosis of his own wife, seemingly possessed by the soul of the deceased...",
+    "posterPath": "https://image.tmdb.org/t/p/w500/6o1hnRBBU2fXlrSAtxS3Sn8QDFA.jpg",
+    "backdropPath": "https://image.tmdb.org/t/p/w1280/9wExS5BkPpCNnva3oXRkw1uV4xJ.jpg",
+    "genres": [
+      "Drama",
+      "Thriller",
+      "Mystery"
+    ],
+    "releaseDate": "2005-05-11",
+    "rating": 6.519,
+    "type": "movie",
+    "youtubeTrailerUrl": "https://www.youtube.com/watch?v=cB4lf0huKfU",
+    "cast": [
+      {
+        "id": 18178,
+        "name": "Laurent Lucas",
+        "character": "Alain Getty",
+        "profilePath": "https://image.tmdb.org/t/p/w185/dMb87uO627isT2BbCHEVbaiCL2g.jpg"
+      },
+      {
+        "id": 4273,
+        "name": "Charlotte Gainsbourg",
+        "character": "Bénédicte Getty",
+        "profilePath": "https://image.tmdb.org/t/p/w185/54RgTfNxhiTsaZfmCXWYLeZgMlC.jpg"
+      },
+      {
+        "id": 18177,
+        "name": "André Dussollier",
+        "character": "Richard Pollock",
+        "profilePath": "https://image.tmdb.org/t/p/w185/hDROAFwZG5F7eduBQEbR1QXOwj2.jpg"
+      },
+      {
+        "id": 44079,
+        "name": "Charlotte Rampling",
+        "character": "Alice Pollock",
+        "profilePath": "https://image.tmdb.org/t/p/w185/7fhg5FCcl0VfYERP5D0unpybqgx.jpg"
+      },
+      {
+        "id": 5082,
+        "name": "Jacques Bonnaffé",
+        "character": "Nicolas Chevalier",
+        "profilePath": "https://image.tmdb.org/t/p/w185/7l3HN762NOiIaDlHuv1pntUBtWv.jpg"
+      },
+      {
+        "id": 1092020,
+        "name": "Véronique Affholder",
+        "character": "Francine",
+        "profilePath": "https://picsum.photos/seed/1092020/185/278"
+      },
+      {
+        "id": 25034,
+        "name": "Michel Cassagne",
+        "character": "Le vétérinaire",
+        "profilePath": "https://picsum.photos/seed/25034/185/278"
+      },
+      {
+        "id": 1092021,
+        "name": "Florence Desille",
+        "character": "L'infirmière",
+        "profilePath": "https://picsum.photos/seed/1092021/185/278"
+      },
+      {
+        "id": 1092022,
+        "name": "Emmanuel Gayet",
+        "character": "Le médecin de garde",
+        "profilePath": "https://image.tmdb.org/t/p/w185/92dHMAPT493vGj5nf1opn9xVvgc.jpg"
+      },
+      {
+        "id": 1092023,
+        "name": "Félix Gonzalez",
+        "character": "Félix, le fils du voisin",
+        "profilePath": "https://picsum.photos/seed/1092023/185/278"
+      }
+    ],
+    "isHindiDubbed": true,
+    "customTags": []
+  },
+  {
+    "id": "278",
+    "title": "The Shawshank Redemption",
+    "description": "Imprisoned in the 1940s for the double murder of his wife and her lover, upstanding banker Andy Dufresne begins a new life at the Shawshank prison, where he puts his accounting skills to work for an amoral warden. During his long stretch in prison, Dufresne comes to be admired by the other inmates -- including an older prisoner named Red -- for his integrity and unquenchable sense of hope.",
+    "posterPath": "https://image.tmdb.org/t/p/w500/9cqNxx0GxF0bflZmeSMuL5tnGzr.jpg",
+    "backdropPath": "https://image.tmdb.org/t/p/w1280/zfbjgQE1uSd9wiPTX4VzsLi0rGG.jpg",
+    "genres": [
+      "Drama",
+      "Crime"
+    ],
+    "releaseDate": "1994-09-23",
+    "rating": 8.711,
+    "type": "movie",
+    "youtubeTrailerUrl": "https://www.youtube.com/watch?v=PLl99DlL6b4",
+    "cast": [
+      {
+        "id": 504,
+        "name": "Tim Robbins",
+        "character": "Andy Dufresne",
+        "profilePath": "https://image.tmdb.org/t/p/w185/9DujxnBMVkizaeIyM0eXPMfXxR.jpg"
+      },
+      {
+        "id": 192,
+        "name": "Morgan Freeman",
+        "character": "Ellis Boyd 'Red' Redding",
+        "profilePath": "https://image.tmdb.org/t/p/w185/jPsLqiYGSofU4s6BjrxnefMfabb.jpg"
+      },
+      {
+        "id": 4029,
+        "name": "Bob Gunton",
+        "character": "Warden Norton",
+        "profilePath": "https://image.tmdb.org/t/p/w185/ulbVvuBToBN3aCGcV028hwO0MOP.jpg"
+      },
+      {
+        "id": 6573,
+        "name": "William Sadler",
+        "character": "Heywood",
+        "profilePath": "https://image.tmdb.org/t/p/w185/xC9sijoDnjS3oDZ5eszcGKHKAOp.jpg"
+      },
+      {
+        "id": 6574,
+        "name": "Clancy Brown",
+        "character": "Captain Byron T. Hadley",
+        "profilePath": "https://image.tmdb.org/t/p/w185/1JeBRNG7VS7r64V9lOvej9bZXW5.jpg"
+      },
+      {
+        "id": 6575,
+        "name": "Gil Bellows",
+        "character": "Tommy",
+        "profilePath": "https://image.tmdb.org/t/p/w185/eCOIv2nSGnWTHdn88NoMyNOKWyR.jpg"
+      },
+      {
+        "id": 6577,
+        "name": "James Whitmore",
+        "character": "Brooks Hatlen",
+        "profilePath": "https://image.tmdb.org/t/p/w185/nYMAbkfwFIgKK84vnLoQctI6vHg.jpg"
+      },
+      {
+        "id": 6576,
+        "name": "Mark Rolston",
+        "character": "Bogs Diamond",
+        "profilePath": "https://image.tmdb.org/t/p/w185/hcrNRIptYMRXgkJ9k76BlQu6DQp.jpg"
+      },
+      {
+        "id": 12645,
+        "name": "Jeffrey DeMunn",
+        "character": "1946 D.A.",
+        "profilePath": "https://image.tmdb.org/t/p/w185/70bkLdlkBB7x2NztuJAh4pjdyxy.jpg"
+      },
+      {
+        "id": 92119,
+        "name": "Larry Brandenburg",
+        "character": "Skeet",
+        "profilePath": "https://image.tmdb.org/t/p/w185/y13c1a4keaLnoTbi3dERwolQXWP.jpg"
+      }
+    ],
+    "isHindiDubbed": true,
+    "customTags": []
+  },
+  {
+    "id": "37680",
+    "title": "Shadows in Paradise",
+    "description": "During a rescue operation in Iraq, Special Forces member Max Forrester is devastated when Sasha, his squad mate and fiancée goes missing. Two years later, Max now out of the military, receives a call from his ex-commander, Captain Dyer, informing him Sasha has been seen alive and moving freely about on a place called Paradise Island. He also informs Max the military is preparing to go in and extract her with possible charges of desertion or worse. Max sets off on his own to Paradise Island to find Sasha and learn the truth before Shadow Company gets to her first.",
+    "posterPath": "https://image.tmdb.org/t/p/w500/90rjc4ZpNAsfBofqlo2KC7DvhIc.jpg",
+    "backdropPath": "https://image.tmdb.org/t/p/w1280/9ZSYg9bPSFm5YDQ1dqNyU5B5C5B.jpg",
+    "genres": [
+      "Action"
+    ],
+    "releaseDate": "2010-02-09",
+    "rating": 5.023,
+    "type": "movie",
+    "cast": [
+      {
+        "id": 18702,
+        "name": "Mark Dacascos",
+        "character": "Lt. Max Forrester",
+        "profilePath": "https://image.tmdb.org/t/p/w185/trOACuJz1KzhB51qe6asaxRuxrh.jpg"
+      },
+      {
+        "id": 23346,
+        "name": "Armand Assante",
+        "character": "Cpt. John 'Ghost' Santos",
+        "profilePath": "https://image.tmdb.org/t/p/w185/9HbbWAJacTHguO2InDVHKGnaasm.jpg"
+      },
+      {
+        "id": 3197,
+        "name": "Tom Sizemore",
+        "character": "Col. Bunker",
+        "profilePath": "https://image.tmdb.org/t/p/w185/cXikL7I0e2geGVvcM2RT8gQq3Nb.jpg"
+      },
+      {
+        "id": 2547,
+        "name": "Bruce Boxleitner",
+        "character": "Cpt. Dyer",
+        "profilePath": "https://image.tmdb.org/t/p/w185/1x99F4oJTFAFY2HR4PbQdxiGyMH.jpg"
+      },
+      {
+        "id": 115948,
+        "name": "Sofya Skya",
+        "character": "Lt. Sasha Villanoff",
+        "profilePath": "https://image.tmdb.org/t/p/w185/zl2tThz0mgQP7ytjTilzGToMyWE.jpg"
+      },
+      {
+        "id": 11160,
+        "name": "Danny Trejo",
+        "character": "Matador",
+        "profilePath": "https://image.tmdb.org/t/p/w185/7JrUkRGBscZ1Hy5JinaaXjjzSCF.jpg"
+      },
+      {
+        "id": 1159,
+        "name": "Steven Bauer",
+        "character": "Agent Stubbs",
+        "profilePath": "https://image.tmdb.org/t/p/w185/wWIgfXMRyGFKBWhV9yc8CObNqfh.jpg"
+      },
+      {
+        "id": 1067467,
+        "name": "Damone Williams",
+        "character": "Pvt. Willard",
+        "profilePath": "https://picsum.photos/seed/1067467/185/278"
+      },
+      {
+        "id": 212480,
+        "name": "Christine Scott Bennett",
+        "character": "Madonna",
+        "profilePath": "https://image.tmdb.org/t/p/w185/bPL3qL9znFCaPgkWnVPa0pJS2eJ.jpg"
+      },
+      {
+        "id": 1067506,
+        "name": "Johnathon Freeman",
+        "character": "Ice",
+        "profilePath": "https://picsum.photos/seed/1067506/185/278"
+      }
+    ],
+    "isHindiDubbed": true,
+    "customTags": []
+  },
+  {
+    "id": "34307",
+    "title": "Shameless",
+    "description": "Chicagoan Frank Gallagher is the proud single dad of six smart, industrious, independent kids, who without him would be... perhaps better off. When Frank's not at the bar spending what little money they have, he's passed out on the floor. But the kids have found ways to grow up in spite of him. They may not be like any family you know, but they make no apologies for being exactly who they are.",
+    "posterPath": "https://image.tmdb.org/t/p/w500/ifo31fMWLmyOVpdak9K0kY4jldQ.jpg",
+    "backdropPath": "https://image.tmdb.org/t/p/w1280/5s9XHTB9SLPdg3mNU6BlSLnZ9Qq.jpg",
+    "genres": [
+      "Drama",
+      "Comedy"
+    ],
+    "releaseDate": "2011-01-09",
+    "rating": 8.164,
+    "type": "tv",
+    "trailerUrl": "https://www.youtube.com/watch?v=9tvkYS5cA58"
+  },
+  {
+    "id": "37680",
+    "title": "Shadows in Paradise",
+    "description": "During a rescue operation in Iraq, Special Forces member Max Forrester is devastated when Sasha, his squad mate and fiancée goes missing. Two years later, Max now out of the military, receives a call from his ex-commander, Captain Dyer, informing him Sasha has been seen alive and moving freely about on a place called Paradise Island. He also informs Max the military is preparing to go in and extract her with possible charges of desertion or worse. Max sets off on his own to Paradise Island to find Sasha and learn the truth before Shadow Company gets to her first.",
+    "posterPath": "https://image.tmdb.org/t/p/w500/90rjc4ZpNAsfBofqlo2KC7DvhIc.jpg",
+    "backdropPath": "https://image.tmdb.org/t/p/w1280/9ZSYg9bPSFm5YDQ1dqNyU5B5C5B.jpg",
+    "genres": [
+      "Action"
+    ],
+    "releaseDate": "2010-02-09",
+    "rating": 5.023,
+    "type": "movie",
+    "trailerUrl": "<iframe src=\"https://h-player-ashen.vercel.app/?embed=1&data=eyJwbGF5bGlzdCI6W3sic2VyaWVzTmFtZSI6InNzIiwic2Vhc29ucyI6W3sic2Vhc29uTnVtYmVyIjoxLCJlcGlzb2RlcyI6W3siZXBpc29kZU51bWJlciI6MSwiZXBpc29kZU5hbWUiOiJzczEiLCJ1cmwiOiJodHRwczovL25ldDUxLmNjL2hscy84MTYyNDAwOS5tM3U4P2luPWNlNzA1MWE3ODBkNDVmMjJlMmE5NjVjMTBhNmI3ZTBiOjpkYTY3YWJjMzRmMTg5Y2RhZmFjY2Q3YmNmNzkyNzcxNTo6MTc2MzY5NDY5Mzo6a3AiLCJkdXJhdGlvbiI6IjAwOjAwOjAwIiwicXVhbGl0eSI6IkF1dG8iLCJwcm9ncmVzcyI6MH0seyJlcGlzb2RlTnVtYmVyIjoyLCJlcGlzb2RlTmFtZSI6InNzMiIsInVybCI6Imh0dHBzOi8vbmV0NTEuY2MvaGxzLzgxNjI0MDA5Lm0zdTg%2FaW49Y2U3MDUxYTc4MGQ0NWYyMmUyYTk2NWMxMGE2YjdlMGI6OmRhNjdhYmMzNGYxODljZGFmYWNjZDdiY2Y3OTI3NzE1OjoxNzYzNjk0NjkzOjprcCIsImR1cmF0aW9uIjoiMDA6MDA6MDAiLCJxdWFsaXR5IjoiQXV0byIsInByb2dyZXNzIjowfSx7ImVwaXNvZGVOdW1iZXIiOjMsImVwaXNvZGVOYW1lIjoic3MzIiwidXJsIjoiaHR0cHM6Ly9uZXQ1MS5jYy9obHMvODE2MjQwMDkubTN1OD9pbj1jZTcwNTFhNzgwZDQ1ZjIyZTJhOTY1YzEwYTZiN2UwYjo6ZGE2N2FiYzM0ZjE4OWNkYWZhY2NkN2JjZjc5Mjc3MTU6OjE3NjM2OTQ2OTM6OmtwIiwiZHVyYXRpb24iOiIwMDowMDowMCIsInF1YWxpdHkiOiJBdXRvIiwicHJvZ3Jlc3MiOjB9LHsiZXBpc29kZU51bWJlciI6NCwiZXBpc29kZU5hbWUiOiJzczQiLCJ1cmwiOiJodHRwczovL25ldDUxLmNjL2hscy84MTYyNDAwOS5tM3U4P2luPWNlNzA1MWE3ODBkNDVmMjJlMmE5NjVjMTBhNmI3ZTBiOjpkYTY3YWJjMzRmMTg5Y2RhZmFjY2Q3YmNmNzkyNzcxNTo6MTc2MzY5NDY5Mzo6a3AiLCJkdXJhdGlvbiI6IjAwOjAwOjAwIiwicXVhbGl0eSI6IkF1dG8iLCJwcm9ncmVzcyI6MH0seyJlcGlzb2RlTnVtYmVyIjo1LCJlcGlzb2RlTmFtZSI6InNzNSIsInVybCI6Imh0dHBzOi8vbmV0NTEuY2MvaGxzLzgxNjI0MDA5Lm0zdTg%2FaW49Y2U3MDUxYTc4MGQ0NWYyMmUyYTk2NWMxMGE2YjdlMGI6OmRhNjdhYmMzNGYxODljZGFmYWNjZDdiY2Y3OTI3NzE1OjoxNzYzNjk0NjkzOjprcCIsImR1cmF0aW9uIjoiMDA6MDA6MDAiLCJxdWFsaXR5IjoiQXV0byIsInByb2dyZXNzIjowfV19XX1dLCJzYXZlIjpmYWxzZX0%3D\" width=\"800\" height=\"450\" frameborder=\"0\" allowfullscreen></iframe>\n\n<!-- If you prefer to postMessage the playlist, use the player iframe and then send { type: \"hplayer.load\", payload: {...} } -->",
+    "isHindiDubbed": true,
+    "customTags": [
+      "hindi dubbed",
+      "shadows in paradise hindi dubbed"
+    ]
+  }
+]
