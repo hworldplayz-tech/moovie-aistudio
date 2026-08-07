@@ -26,7 +26,7 @@ export function AppHeader() {
   };
 
   return (
-    <header className="sticky top-0 z-20 flex h-14 sm:h-16 items-center gap-2 border-b bg-background/95 backdrop-blur-md px-3 sm:px-4 md:px-6 w-full max-w-full overflow-hidden shrink-0">
+    <header className="sticky top-0 z-40 flex h-14 sm:h-16 items-center gap-2 border-b bg-background/95 backdrop-blur-md px-3 sm:px-4 md:px-6 w-full max-w-full shrink-0 shadow-sm">
       <SidebarTrigger className="md:hidden shrink-0" />
       <div className="flex-1 min-w-0">
         <form onSubmit={handleSearch}>

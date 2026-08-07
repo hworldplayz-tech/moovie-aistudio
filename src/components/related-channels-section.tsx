@@ -6,7 +6,7 @@ import type { LiveChannel } from '@/lib/definitions';
 import { getLiveChannels, getSiteConfigFromFirestore } from '@/lib/firestore';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
-import { Tv, PlayCircle, RefreshCw, ChevronDown } from 'lucide-react';
+import { Tv, PlayCircle, RefreshCw, ChevronDown, LayoutGrid, List } from 'lucide-react';
 import {
     Carousel,
     CarouselContent,
@@ -50,6 +50,7 @@ export function RelatedChannelsSection({
     const [visibleCount, setVisibleCount] = useState<number>(6);
     const [stepSize, setStepSize] = useState<number>(6);
     const [layout, setLayout] = useState<'grid' | 'slider'>('grid');
+    const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -109,8 +110,8 @@ export function RelatedChannelsSection({
         return (
             <div className="space-y-4 pt-4">
                 <Skeleton className="h-7 w-48" />
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                    {[...Array(3)].map((_, i) => (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                    {[...Array(4)].map((_, i) => (
                         <Skeleton key={i} className="aspect-video w-full rounded-xl" />
                     ))}
                 </div>
@@ -126,67 +127,154 @@ export function RelatedChannelsSection({
     const hasMore = visibleCount < allRelated.length;
 
     return (
-        <div className="space-y-6 pt-6 border-t">
-            <div className="flex items-center justify-between">
-                <h2 className="text-2xl font-bold flex items-center gap-2">
-                    <Tv className="h-6 w-6 text-primary" />
+        <div className="space-y-6 pt-6 border-t w-full min-w-0 relative">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+                <h2 className="text-xl sm:text-2xl font-bold flex items-center gap-2">
+                    <Tv className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
                     More Live TV Channels
                 </h2>
-                {hasMore && (
-                    <span className="text-xs text-muted-foreground">
-                        Showing {displayedChannels.length} of {allRelated.length}
-                    </span>
-                )}
+
+                <div className="flex items-center gap-3">
+                    {hasMore && (
+                        <span className="text-xs text-muted-foreground hidden sm:inline">
+                            Showing {displayedChannels.length} of {allRelated.length}
+                        </span>
+                    )}
+
+                    {layout === 'grid' && (
+                        <div className="flex items-center bg-muted/60 p-1 rounded-lg border border-border/50">
+                            <Button
+                                variant={viewMode === 'grid' ? 'secondary' : 'ghost'}
+                                size="sm"
+                                onClick={() => setViewMode('grid')}
+                                className="h-7 px-2.5 text-xs gap-1.5 rounded-md"
+                                title="Grid View"
+                            >
+                                <LayoutGrid className="h-3.5 w-3.5" />
+                                <span className="hidden sm:inline">Grid</span>
+                            </Button>
+                            <Button
+                                variant={viewMode === 'list' ? 'secondary' : 'ghost'}
+                                size="sm"
+                                onClick={() => setViewMode('list')}
+                                className="h-7 px-2.5 text-xs gap-1.5 rounded-md"
+                                title="List View"
+                            >
+                                <List className="h-3.5 w-3.5" />
+                                <span className="hidden sm:inline">List</span>
+                            </Button>
+                        </div>
+                    )}
+                </div>
             </div>
 
             {layout === 'grid' ? (
-                <div className="space-y-6">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-4">
-                        {displayedChannels.map((channel) => {
-                            const poster = channel.posterUrl || channel.posterPath;
-                            return (
-                                <div
-                                    key={channel.id}
-                                    className="relative aspect-video rounded-xl overflow-hidden group border border-border/50 shadow-md bg-black"
-                                >
-                                    {poster ? (
-                                        <img
-                                            src={poster}
-                                            alt={channel.title}
-                                            className="absolute inset-0 w-full h-full object-cover object-center transition-transform duration-500 group-hover:scale-105"
-                                        />
-                                    ) : (
-                                        <div className="absolute inset-0 bg-gradient-to-br from-gray-900 to-gray-800" />
-                                    )}
+                <div className="space-y-6 w-full min-w-0">
+                    {viewMode === 'grid' ? (
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 w-full">
+                            {displayedChannels.map((channel) => {
+                                const poster = channel.posterUrl || channel.posterPath;
+                                return (
+                                    <div
+                                        key={channel.id}
+                                        className="relative aspect-video rounded-xl overflow-hidden group border border-border/50 shadow-md bg-black w-full min-w-0"
+                                    >
+                                        {poster ? (
+                                            <img
+                                                src={poster}
+                                                alt={channel.title}
+                                                className="absolute inset-0 w-full h-full object-cover object-center transition-transform duration-500 group-hover:scale-105"
+                                            />
+                                        ) : (
+                                            <div className="absolute inset-0 bg-gradient-to-br from-gray-900 to-gray-800" />
+                                        )}
 
-                                    <div className="absolute inset-0 bg-gradient-to-t from-black via-black/60 to-transparent opacity-90" />
+                                        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/60 to-transparent opacity-90" />
 
-                                    <div className="absolute inset-0 flex flex-col justify-end p-4">
-                                        <div className="flex items-center justify-between mb-2">
-                                            <Badge variant="default" className="bg-primary/90 text-primary-foreground text-xs px-1.5 py-0 h-5">
-                                                Live
-                                            </Badge>
-                                            <Badge variant="outline" className="text-white border-white/20 text-xs px-1.5 py-0 h-5">
-                                                {channel.country}
-                                            </Badge>
+                                        <div className="absolute inset-0 flex flex-col justify-end p-2.5 sm:p-4 min-w-0">
+                                            <div className="flex items-center justify-between mb-1 sm:mb-2">
+                                                <Badge variant="default" className="bg-primary/90 text-primary-foreground text-[10px] sm:text-xs px-1 sm:px-1.5 py-0 h-4 sm:h-5">
+                                                    Live
+                                                </Badge>
+                                                <Badge variant="outline" className="text-white border-white/20 text-[10px] sm:text-xs px-1 sm:px-1.5 py-0 h-4 sm:h-5">
+                                                    {channel.country}
+                                                </Badge>
+                                            </div>
+
+                                            <h3 className="text-xs sm:text-base font-bold text-white mb-0.5 line-clamp-1 break-words">{channel.title}</h3>
+                                            <p className="text-[10px] sm:text-xs text-gray-300 line-clamp-1 mb-2 sm:mb-3 break-words hidden sm:block">
+                                                {channel.description || 'Watch live channel stream.'}
+                                            </p>
+
+                                            <Button asChild size="sm" className="w-full text-xs h-7 sm:h-8">
+                                                <Link href={`/live-tv/${channel.id}`}>
+                                                    <PlayCircle className="mr-1 sm:mr-1.5 h-3 w-3 sm:h-3.5 sm:w-3.5" />
+                                                    Watch Channel
+                                                </Link>
+                                            </Button>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    ) : (
+                        <div className="flex flex-col gap-3 w-full">
+                            {displayedChannels.map((channel) => {
+                                const poster = channel.posterUrl || channel.posterPath;
+                                return (
+                                    <div
+                                        key={channel.id}
+                                        className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-3 rounded-xl border border-border/50 bg-card hover:bg-muted/50 transition-colors gap-3 sm:gap-4 w-full"
+                                    >
+                                        <div className="flex items-center gap-3 min-w-0 w-full sm:w-auto flex-1">
+                                            <div className="relative w-24 sm:w-32 aspect-video rounded-lg overflow-hidden bg-black flex-shrink-0 border border-border/40">
+                                                {poster ? (
+                                                    <img
+                                                        src={poster}
+                                                        alt={channel.title}
+                                                        className="w-full h-full object-cover"
+                                                    />
+                                                ) : (
+                                                    <div className="w-full h-full flex items-center justify-center bg-muted">
+                                                        <Tv className="h-6 w-6 text-muted-foreground" />
+                                                    </div>
+                                                )}
+                                                <Badge variant="default" className="absolute top-1 left-1 bg-primary text-primary-foreground text-[9px] px-1 py-0 h-4">
+                                                    Live
+                                                </Badge>
+                                            </div>
+
+                                            <div className="min-w-0 flex-1 space-y-1">
+                                                <div className="flex items-center gap-2">
+                                                    <h3 className="font-bold text-sm sm:text-base line-clamp-1">{channel.title}</h3>
+                                                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 shrink-0">
+                                                        {channel.country}
+                                                    </Badge>
+                                                </div>
+                                                <p className="text-xs text-muted-foreground line-clamp-1">
+                                                    {channel.description || 'Watch live channel stream.'}
+                                                </p>
+                                                <div className="flex flex-wrap gap-1 pt-0.5">
+                                                    {(channel.tags || []).slice(0, 3).map(tag => (
+                                                        <Badge key={tag} variant="secondary" className="text-[9px] px-1 py-0 h-3.5">
+                                                            {tag}
+                                                        </Badge>
+                                                    ))}
+                                                </div>
+                                            </div>
                                         </div>
 
-                                        <h3 className="text-lg font-bold text-white mb-1 line-clamp-1">{channel.title}</h3>
-                                        <p className="text-xs text-gray-300 line-clamp-1 mb-3">
-                                            {channel.description || 'Watch live channel stream.'}
-                                        </p>
-
-                                        <Button asChild size="sm" className="w-full text-xs h-8">
+                                        <Button asChild size="sm" className="w-full sm:w-auto text-xs shrink-0 h-8">
                                             <Link href={`/live-tv/${channel.id}`}>
                                                 <PlayCircle className="mr-1.5 h-3.5 w-3.5" />
-                                                Watch Channel
+                                                Watch
                                             </Link>
                                         </Button>
                                     </div>
-                                </div>
-                            );
-                        })}
-                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
 
                     {hasMore && (
                         <div className="flex justify-center pt-2">
@@ -203,20 +291,20 @@ export function RelatedChannelsSection({
                     )}
                 </div>
             ) : (
-                <div className="space-y-6">
+                <div className="space-y-6 w-full min-w-0">
                     <Carousel
                         opts={{
                             align: 'start',
                             loop: allRelated.length > 3,
                         }}
-                        className="w-full"
+                        className="w-full min-w-0 px-2 sm:px-4"
                     >
                         <CarouselContent className="-ml-3 sm:-ml-4">
                             {displayedChannels.map((channel) => {
                                 const poster = channel.posterUrl || channel.posterPath;
                                 return (
-                                    <CarouselItem key={channel.id} className="pl-3 sm:pl-4 basis-full sm:basis-1/2 md:basis-1/3">
-                                        <div className="relative aspect-video rounded-xl overflow-hidden group border border-border/50 shadow-md bg-black">
+                                    <CarouselItem key={channel.id} className="pl-3 sm:pl-4 basis-1/2 sm:basis-1/2 md:basis-1/3 min-w-0">
+                                        <div className="relative aspect-video rounded-xl overflow-hidden group border border-border/50 shadow-md bg-black w-full min-w-0">
                                             {poster ? (
                                                 <img
                                                     src={poster}
@@ -229,24 +317,24 @@ export function RelatedChannelsSection({
 
                                             <div className="absolute inset-0 bg-gradient-to-t from-black via-black/60 to-transparent opacity-90" />
 
-                                            <div className="absolute inset-0 flex flex-col justify-end p-4">
-                                                <div className="flex items-center justify-between mb-2">
-                                                    <Badge variant="default" className="bg-primary/90 text-primary-foreground text-xs px-1.5 py-0 h-5">
+                                            <div className="absolute inset-0 flex flex-col justify-end p-2.5 sm:p-4 min-w-0">
+                                                <div className="flex items-center justify-between mb-1 sm:mb-2">
+                                                    <Badge variant="default" className="bg-primary/90 text-primary-foreground text-[10px] sm:text-xs px-1 sm:px-1.5 py-0 h-4 sm:h-5">
                                                         Live
                                                     </Badge>
-                                                    <Badge variant="outline" className="text-white border-white/20 text-xs px-1.5 py-0 h-5">
+                                                    <Badge variant="outline" className="text-white border-white/20 text-[10px] sm:text-xs px-1 sm:px-1.5 py-0 h-4 sm:h-5">
                                                         {channel.country}
                                                     </Badge>
                                                 </div>
 
-                                                <h3 className="text-lg font-bold text-white mb-1 line-clamp-1">{channel.title}</h3>
-                                                <p className="text-xs text-gray-300 line-clamp-1 mb-3">
+                                                <h3 className="text-xs sm:text-base font-bold text-white mb-0.5 line-clamp-1 break-words">{channel.title}</h3>
+                                                <p className="text-[10px] sm:text-xs text-gray-300 line-clamp-1 mb-2 sm:mb-3 break-words hidden sm:block">
                                                     {channel.description || 'Watch live channel stream.'}
                                                 </p>
 
-                                                <Button asChild size="sm" className="w-full text-xs h-8">
+                                                <Button asChild size="sm" className="w-full text-xs h-7 sm:h-8">
                                                     <Link href={`/live-tv/${channel.id}`}>
-                                                        <PlayCircle className="mr-1.5 h-3.5 w-3.5" />
+                                                        <PlayCircle className="mr-1 sm:mr-1.5 h-3 w-3 sm:h-3.5 sm:w-3.5" />
                                                         Watch Channel
                                                     </Link>
                                                 </Button>
@@ -256,8 +344,8 @@ export function RelatedChannelsSection({
                                 );
                             })}
                         </CarouselContent>
-                        <CarouselPrevious className="hidden md:flex -left-4" />
-                        <CarouselNext className="hidden md:flex -right-4" />
+                        <CarouselPrevious className="hidden md:flex -left-2 lg:-left-4" />
+                        <CarouselNext className="hidden md:flex -right-2 lg:-right-4" />
                     </Carousel>
 
                     {hasMore && (

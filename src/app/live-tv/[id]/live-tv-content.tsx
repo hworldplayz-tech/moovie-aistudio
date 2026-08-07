@@ -65,56 +65,51 @@ export default function LiveTvContent({ channel }: LiveTvContentProps) {
                     />
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div className="md:col-span-2 space-y-6">
-
-                        {/* About Section with Poster */}
-                        <Card className="bg-card border h-full">
-                            <CardHeader>
-                                <CardTitle className="flex items-center gap-2">
-                                    <Info className="h-5 w-5" /> About this Channel
-                                </CardTitle>
-                            </CardHeader>
-                            <CardContent className="space-y-4">
-                                <div className="flex flex-col md:flex-row gap-6">
-                                    {displayPoster && (
-                                        <div className="flex-shrink-0">
-                                            <img
-                                                src={displayPoster}
-                                                alt={`${channel.title} Poster`}
-                                                className="w-full md:w-48 h-auto rounded-lg shadow-md object-cover aspect-[2/3]"
-                                            />
-                                        </div>
-                                    )}
-                                    <div className="flex-1">
-                                        <p className="text-lg leading-relaxed text-muted-foreground">{channel.description}</p>
+                <div className="space-y-6 w-full min-w-0">
+                    {/* About Section with Poster */}
+                    <Card className="bg-card border w-full">
+                        <CardHeader className="p-4 sm:p-6 pb-2 sm:pb-3">
+                            <CardTitle className="flex items-center gap-2 text-xl font-bold">
+                                <Info className="h-5 w-5 text-primary" /> About this Channel
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent className="p-4 sm:p-6 pt-0">
+                            <div className="flex flex-col sm:flex-row gap-6 items-start">
+                                {displayPoster && (
+                                    <div className="w-full sm:w-48 sm:max-w-[12rem] flex-shrink-0">
+                                        <img
+                                            src={displayPoster}
+                                            alt={`${channel.title} Poster`}
+                                            className="w-full h-auto rounded-lg shadow-md object-cover aspect-[2/3]"
+                                        />
                                     </div>
+                                )}
+                                <div className="flex-1 min-w-0 w-full space-y-2">
+                                    <p className="text-sm sm:text-base md:text-lg leading-relaxed text-muted-foreground break-words overflow-wrap-anywhere whitespace-pre-line">
+                                        {channel.description || 'No channel description provided.'}
+                                    </p>
                                 </div>
-                            </CardContent>
-                        </Card>
+                            </div>
+                        </CardContent>
+                    </Card>
 
-                        {/* Disclaimer Section */}
-                        <Card className="bg-amber-500/10 border-amber-500/50">
-                            <CardHeader>
-                                <CardTitle className="flex items-center gap-2 text-amber-500">
-                                    <AlertTriangle className="h-5 w-5" /> Disclaimer
-                                </CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                                <p className="text-sm text-muted-foreground">
-                                    This content is not hosted or controlled by us. We simply provide links to streams that are already available on the public internet. All rights belong to their respective owners. If you are a copyright owner and wish to have this content removed, please contact us.
-                                </p>
-                            </CardContent>
-                        </Card>
-                    </div>
+                    {/* Disclaimer Section */}
+                    <Card className="bg-amber-500/10 border-amber-500/50 w-full">
+                        <CardHeader className="p-4 sm:p-6 pb-2">
+                            <CardTitle className="flex items-center gap-2 text-amber-500 text-lg">
+                                <AlertTriangle className="h-5 w-5" /> Disclaimer
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent className="p-4 sm:p-6 pt-0">
+                            <p className="text-sm text-muted-foreground leading-relaxed break-words">
+                                This content is not hosted or controlled by us. We simply provide links to streams that are already available on the public internet. All rights belong to their respective owners. If you are a copyright owner and wish to have this content removed, please contact us.
+                            </p>
+                        </CardContent>
+                    </Card>
 
-                    <div className="md:col-span-1">
-                        {/* Sidebar placeholder */}
-                    </div>
+                    {/* Related Channels Section */}
+                    <RelatedChannelsSection currentChannel={channel} />
                 </div>
-
-                {/* Related Channels Section */}
-                <RelatedChannelsSection currentChannel={channel} />
             </div>
         </div>
     );
