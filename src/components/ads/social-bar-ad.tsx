@@ -78,17 +78,24 @@ export default function SocialBarAd() {
         <>
             {/* Bottom Sticky Overlay Banner */}
             {stickyScript && isStickyVisible && (
-                <div className="fixed bottom-0 left-0 right-0 z-50 bg-background/95 backdrop-blur border-t shadow-xl">
-                    <div className="container mx-auto px-2 py-1.5 relative flex flex-col items-center justify-center min-h-[70px] sm:min-h-[105px]">
-                        <button
-                            onClick={() => setIsStickyVisible(false)}
-                            className="absolute top-1 right-2 p-1.5 rounded-full bg-muted/80 hover:bg-muted text-foreground transition-colors z-10"
-                            aria-label="Close advertisement"
-                        >
-                            <X className="h-4 w-4" />
-                        </button>
-                        <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Advertisement</div>
-                        <AdContainer html={stickyScript} className="bottom-sticky-ad-content flex justify-center items-center w-full min-h-[60px] sm:min-h-[90px] overflow-hidden" />
+                <div className="fixed bottom-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-md border-t border-border/60 shadow-2xl py-1 px-2">
+                    <div className="max-w-7xl mx-auto relative flex flex-col items-center justify-center">
+                        <div className="flex items-center justify-between w-full max-w-4xl px-2 mb-0.5">
+                            <span className="text-[9px] font-medium text-muted-foreground/80 uppercase tracking-wider">
+                                Advertisement
+                            </span>
+                            <button
+                                onClick={() => setIsStickyVisible(false)}
+                                className="p-1 rounded-md bg-muted/80 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                                aria-label="Close advertisement"
+                                title="Close ad"
+                            >
+                                <X className="h-3.5 w-3.5" />
+                            </button>
+                        </div>
+                        <div className="w-full flex justify-center items-center overflow-hidden min-h-[50px]">
+                            <AdContainer html={stickyScript} className="w-full flex justify-center items-center" />
+                        </div>
                     </div>
                 </div>
             )}

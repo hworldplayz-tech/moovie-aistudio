@@ -114,18 +114,28 @@ export function AdContainer({ html, className = '', height }: AdContainerProps) 
                 const adjustHeight = () => {
                     try {
                         const body = doc.body;
-                        if (body && body.scrollHeight > 0) {
-                            const h = Math.max(body.scrollHeight, body.offsetHeight, 60);
-                            iframe.style.height = `${h}px`;
+                        if (body) {
+                            const contentHeight = Math.max(
+                                body.scrollHeight,
+                                body.offsetHeight,
+                                doc.documentElement?.scrollHeight || 0,
+                                doc.documentElement?.offsetHeight || 0
+                            );
+                            if (contentHeight > 20) {
+                                iframe.style.height = `${contentHeight}px`;
+                            }
                         }
                     } catch (e) {
                         // ignore cross-origin restrictions if ad redirects
                     }
                 };
 
+                iframe.onload = adjustHeight;
+                setTimeout(adjustHeight, 100);
                 setTimeout(adjustHeight, 300);
-                setTimeout(adjustHeight, 1000);
-                setTimeout(adjustHeight, 2500);
+                setTimeout(adjustHeight, 800);
+                setTimeout(adjustHeight, 1500);
+                setTimeout(adjustHeight, 3000);
             }
         } catch (err) {
             console.error('Error rendering ad iframe:', err);
