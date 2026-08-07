@@ -26,7 +26,15 @@ export default function SocialBarAd() {
                     return;
                 }
 
-                const scripts = await getAdScriptsByType('social_bar');
+                let scripts = await getAdScriptsByType('social_bar');
+                if (scripts.length === 0) {
+                    // Fallback to banner_728x90 or banner_468x60 if no explicit social_bar script exists
+                    scripts = await getAdScriptsByType('banner_728x90');
+                }
+                if (scripts.length === 0) {
+                    scripts = await getAdScriptsByType('banner_468x60');
+                }
+
                 if (scripts.length === 0) {
                     setShouldDisplay(false);
                     return;

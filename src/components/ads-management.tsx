@@ -250,7 +250,7 @@ export default function AdsManagement() {
         { value: 'banner_468x60', label: 'Banner 468x60' },
         { value: 'banner_300x250', label: 'Banner 300x250' },
         { value: 'native', label: 'Native Banner' },
-        { value: 'social_bar', label: 'Social Bar' },
+        { value: 'social_bar', label: 'Social Bar / Bottom Sticky Banner' },
         { value: 'direct_link', label: 'Direct Link' },
         { value: 'video', label: 'Video Ad' },
         { value: 'in_page_push', label: 'In-Page Push' }
