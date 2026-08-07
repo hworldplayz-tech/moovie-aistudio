@@ -13,9 +13,9 @@ export default function BannerAd({ size, position, className = '', lazyLoad = tr
     const adType = `banner_${size}`;
 
     const sizeClasses = {
-        '728x90': 'w-full max-w-full sm:max-w-[728px] min-h-[115px] h-auto',
-        '468x60': 'w-full max-w-full sm:max-w-[468px] min-h-[85px] h-auto',
-        '300x250': 'w-full max-w-[300px] min-h-[275px] h-auto'
+        '728x90': 'w-full max-w-full sm:max-w-[728px] h-auto',
+        '468x60': 'w-full max-w-full sm:max-w-[468px] h-auto',
+        '300x250': 'w-full max-w-[300px] h-auto'
     };
 
     return (

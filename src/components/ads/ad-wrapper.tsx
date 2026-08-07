@@ -138,7 +138,7 @@ export default function AdWrapper({ adType, position, className = '', lazyLoad =
         >
             {children}
             {shouldDisplay && adScript && (
-                <AdContainer html={adScript} className="ad-content flex justify-center items-center my-1 min-h-[50px]" />
+                <AdContainer html={adScript} className="ad-content flex justify-center items-center my-1" />
             )}
         </div>
     );

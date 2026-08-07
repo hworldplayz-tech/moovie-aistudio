@@ -65,14 +65,15 @@ export function AdContainer({ html, className = '', height }: AdContainerProps) 
         // Render ad inside an isolated iframe so document.write calls (common in ad networks like Adsterra/Monetag)
         // execute cleanly during parser stream without being blocked by SPA async execution rules.
         const iframe = document.createElement('iframe');
+        iframe.setAttribute('allowtransparency', 'true');
+        iframe.setAttribute('scrolling', 'no');
+        iframe.setAttribute('frameborder', '0');
         iframe.style.width = '100%';
-        iframe.style.height = height ? (typeof height === 'number' ? `${height}px` : height) : '100%';
-        iframe.style.minHeight = '60px';
+        iframe.style.height = height ? (typeof height === 'number' ? `${height}px` : height) : '0px';
         iframe.style.border = 'none';
         iframe.style.overflow = 'hidden';
         iframe.style.display = 'block';
-        iframe.setAttribute('scrolling', 'no');
-        iframe.setAttribute('frameborder', '0');
+        iframe.style.backgroundColor = 'transparent';
 
         container.appendChild(iframe);
 
@@ -87,23 +88,32 @@ export function AdContainer({ html, className = '', height }: AdContainerProps) 
                         <meta charset="utf-8">
                         <meta name="viewport" content="width=device-width, initial-scale=1.0">
                         <style>
-                            html, body {
+                            * {
+                                box-sizing: border-box;
+                            }
+                            html {
+                                background: transparent !important;
                                 margin: 0;
                                 padding: 0;
-                                width: 100%;
-                                height: 100%;
+                                overflow: hidden;
+                            }
+                            body {
+                                margin: 0;
+                                padding: 0;
+                                background: transparent !important;
+                                color: inherit;
+                                overflow: hidden;
                                 display: flex;
                                 justify-content: center;
                                 align-items: center;
-                                background: transparent;
-                                overflow: hidden;
+                                width: 100%;
                             }
                             img, iframe, svg, div, a {
                                 max-width: 100%;
                             }
                         </style>
                     </head>
-                    <body>
+                    <body allowtransparency="true">
                         ${html}
                     </body>
                     </html>
@@ -114,16 +124,26 @@ export function AdContainer({ html, className = '', height }: AdContainerProps) 
                 const adjustHeight = () => {
                     try {
                         const body = doc.body;
-                        if (body) {
-                            const contentHeight = Math.max(
-                                body.scrollHeight,
-                                body.offsetHeight,
-                                doc.documentElement?.scrollHeight || 0,
-                                doc.documentElement?.offsetHeight || 0
-                            );
-                            if (contentHeight > 20) {
-                                iframe.style.height = `${contentHeight}px`;
-                            }
+                        if (!body) return;
+
+                        let measuredHeight = 0;
+
+                        // Check direct element children in body
+                        const children = Array.from(body.children);
+                        for (const child of children) {
+                            if (child.tagName === 'SCRIPT' || child.tagName === 'STYLE') continue;
+                            const el = child as HTMLElement;
+                            const rect = el.getBoundingClientRect();
+                            const h = Math.max(el.offsetHeight || 0, el.scrollHeight || 0, Math.ceil(rect.height) || 0);
+                            if (h > measuredHeight) measuredHeight = h;
+                        }
+
+                        if (!measuredHeight || measuredHeight < 10) {
+                            measuredHeight = Math.max(body.scrollHeight || 0, body.offsetHeight || 0);
+                        }
+
+                        if (measuredHeight > 0) {
+                            iframe.style.height = `${measuredHeight}px`;
                         }
                     } catch (e) {
                         // ignore cross-origin restrictions if ad redirects
@@ -131,11 +151,11 @@ export function AdContainer({ html, className = '', height }: AdContainerProps) 
                 };
 
                 iframe.onload = adjustHeight;
-                setTimeout(adjustHeight, 100);
-                setTimeout(adjustHeight, 300);
-                setTimeout(adjustHeight, 800);
-                setTimeout(adjustHeight, 1500);
-                setTimeout(adjustHeight, 3000);
+                setTimeout(adjustHeight, 50);
+                setTimeout(adjustHeight, 200);
+                setTimeout(adjustHeight, 600);
+                setTimeout(adjustHeight, 1200);
+                setTimeout(adjustHeight, 2500);
             }
         } catch (err) {
             console.error('Error rendering ad iframe:', err);

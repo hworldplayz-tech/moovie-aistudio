@@ -93,7 +93,7 @@ export default function SocialBarAd() {
                                 <X className="h-3.5 w-3.5" />
                             </button>
                         </div>
-                        <div className="w-full flex justify-center items-center overflow-hidden min-h-[50px]">
+                        <div className="w-full flex justify-center items-center overflow-hidden">
                             <AdContainer html={stickyScript} className="w-full flex justify-center items-center" />
                         </div>
                     </div>
