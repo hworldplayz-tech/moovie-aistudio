@@ -54,7 +54,14 @@ export default function SocialBarAd() {
                 const canShow = await shouldShowAd('bottom_sticky', undefined, settings.testMode, settings.masterEnabled);
                 if (!canShow) return;
 
-                const scripts = await getAdScriptsByType('bottom_sticky');
+                let scripts = await getAdScriptsByType('bottom_sticky');
+                if (scripts.length === 0) {
+                    scripts = await getAdScriptsByType('banner_728x90');
+                }
+                if (scripts.length === 0) {
+                    scripts = await getAdScriptsByType('banner_468x60');
+                }
+
                 const selected = selectRandomScript(scripts);
                 if (selected?.script) {
                     setStickyScript(selected.script);
@@ -72,16 +79,16 @@ export default function SocialBarAd() {
             {/* Bottom Sticky Overlay Banner */}
             {stickyScript && isStickyVisible && (
                 <div className="fixed bottom-0 left-0 right-0 z-50 bg-background/95 backdrop-blur border-t shadow-xl">
-                    <div className="container mx-auto px-4 py-2 relative flex flex-col items-center justify-center min-h-[60px]">
+                    <div className="container mx-auto px-2 py-1.5 relative flex flex-col items-center justify-center min-h-[70px] sm:min-h-[105px]">
                         <button
                             onClick={() => setIsStickyVisible(false)}
-                            className="absolute top-1.5 right-2 p-1.5 rounded-full bg-muted/80 hover:bg-muted text-foreground transition-colors z-10"
+                            className="absolute top-1 right-2 p-1.5 rounded-full bg-muted/80 hover:bg-muted text-foreground transition-colors z-10"
                             aria-label="Close advertisement"
                         >
                             <X className="h-4 w-4" />
                         </button>
                         <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Advertisement</div>
-                        <AdContainer html={stickyScript} className="bottom-sticky-ad-content flex justify-center items-center w-full overflow-hidden" />
+                        <AdContainer html={stickyScript} className="bottom-sticky-ad-content flex justify-center items-center w-full min-h-[60px] sm:min-h-[90px] overflow-hidden" />
                     </div>
                 </div>
             )}
