@@ -100,17 +100,19 @@ export default function AdsManagement() {
         setIsLoading(true);
         try {
             const [networksData, scriptsData, zonesData, settingsData] = await Promise.all([
-                fetch('/api/admin/ads/networks').then(r => r.json()),
-                fetch('/api/admin/ads/scripts').then(r => r.json()),
-                fetch('/api/admin/ads/zones').then(r => r.json()),
-                fetch('/api/admin/ads/settings').then(r => r.json())
+                fetch('/api/admin/ads/networks').then(r => r.ok ? r.json() : []).catch(() => []),
+                fetch('/api/admin/ads/scripts').then(r => r.ok ? r.json() : []).catch(() => []),
+                fetch('/api/admin/ads/zones').then(r => r.ok ? r.json() : []).catch(() => []),
+                fetch('/api/admin/ads/settings').then(r => r.ok ? r.json() : {}).catch(() => ({}))
             ]);
-            setNetworks(networksData);
-            setScripts(scriptsData);
-            setZones(zonesData);
-            setSettings(settingsData);
+            setNetworks(Array.isArray(networksData) ? networksData : []);
+            setScripts(Array.isArray(scriptsData) ? scriptsData : []);
+            setZones(Array.isArray(zonesData) ? zonesData : []);
+            if (settingsData && typeof settingsData === 'object' && !Array.isArray(settingsData)) {
+                setSettings(settingsData);
+            }
         } catch (error) {
-            toast({ title: 'Error', description: 'Failed to load ads data', variant: 'destructive' });
+            console.error('Error fetching ads data:', error);
         } finally {
             setIsLoading(false);
         }
@@ -257,12 +259,14 @@ export default function AdsManagement() {
     return (
         <div className="space-y-6">
             <Tabs defaultValue="networks" className="w-full">
-                <TabsList className="grid w-full grid-cols-4">
-                    <TabsTrigger value="networks">Ad Networks</TabsTrigger>
-                    <TabsTrigger value="scripts">Ad Scripts</TabsTrigger>
-                    <TabsTrigger value="zones">Ad Zones</TabsTrigger>
-                    <TabsTrigger value="settings">Global Settings</TabsTrigger>
-                </TabsList>
+                <div className="w-full overflow-x-auto pb-1 max-w-full">
+                    <TabsList className="inline-flex h-auto p-1 bg-muted rounded-lg w-max min-w-full justify-start sm:justify-center gap-1">
+                        <TabsTrigger value="networks" className="text-xs sm:text-sm py-2 px-3 shrink-0 whitespace-nowrap">Ad Networks</TabsTrigger>
+                        <TabsTrigger value="scripts" className="text-xs sm:text-sm py-2 px-3 shrink-0 whitespace-nowrap">Ad Scripts</TabsTrigger>
+                        <TabsTrigger value="zones" className="text-xs sm:text-sm py-2 px-3 shrink-0 whitespace-nowrap">Ad Zones</TabsTrigger>
+                        <TabsTrigger value="settings" className="text-xs sm:text-sm py-2 px-3 shrink-0 whitespace-nowrap">Global Settings</TabsTrigger>
+                    </TabsList>
+                </div>
 
                 {/* Ad Networks Tab */}
                 <TabsContent value="networks">

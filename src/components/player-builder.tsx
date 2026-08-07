@@ -243,7 +243,7 @@ export default function PlayerBuilder({ onPlayerCreated }: PlayerBuilderProps) {
     return (
         <div className="space-y-6">
             <Tabs defaultValue="quick" className="w-full">
-                <TabsList className="grid w-full grid-cols-2">
+                <TabsList className="grid w-full grid-cols-2 text-xs sm:text-sm">
                     <TabsTrigger value="quick">Quick Generator</TabsTrigger>
                     <TabsTrigger value="saved">Saved Players</TabsTrigger>
                 </TabsList>

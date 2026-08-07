@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
 import { shouldShowAd, getAdSettings, getAdScriptsByType, selectRandomScript } from '@/lib/ad-utils';
+import { AdContainer } from './ad-container';
 
 export default function SocialBarAd() {
     const [adScript, setAdScript] = useState<string | null>(null);
@@ -54,16 +55,13 @@ export default function SocialBarAd() {
             <div className="container mx-auto px-4 py-2 relative">
                 <button
                     onClick={() => setIsVisible(false)}
-                    className="absolute top-2 right-2 p-1 rounded-full hover:bg-muted transition-colors"
+                    className="absolute top-2 right-2 p-1 rounded-full hover:bg-muted transition-colors z-10"
                     aria-label="Close ad"
                 >
                     <X className="h-4 w-4" />
                 </button>
                 <div className="text-xs text-muted-foreground text-center mb-1">Advertisement</div>
-                <div
-                    className="social-bar-ad-content"
-                    dangerouslySetInnerHTML={{ __html: adScript }}
-                />
+                <AdContainer html={adScript} className="social-bar-ad-content flex justify-center items-center" />
             </div>
         </div>
     );

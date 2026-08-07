@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { shouldShowAd, getAdSettings, getAdScriptsByType, selectRandomScript, incrementAdCount, getZoneConfig } from '@/lib/ad-utils';
+import { executeAdScript } from './ad-container';
 
 interface PopupHandlerProps {
     trigger?: 'load' | 'time' | 'exit_intent';
@@ -48,12 +49,6 @@ export default function PopupHandler({ trigger = 'time', delay = 30, position }:
 
                 if (!canShow) return;
 
-                // Get popup scripts
-                // If zone exists, maybe we should filter scripts by zone?
-                // But ad_zones collection doesn't really link to specific scripts unless strictly defined?
-                // AdWrapper uses adType. 
-                // PopupHandler is specifically "popup".
-                // We'll stick to 'popup' type unless zone specifies otherwise (unlikely for popup handler which is generic).
                 const scripts = await getAdScriptsByType('popup');
                 if (scripts.length === 0) return;
 
@@ -61,10 +56,13 @@ export default function PopupHandler({ trigger = 'time', delay = 30, position }:
                 const selectedScript = selectRandomScript(scripts);
                 if (!selectedScript) return;
 
-                // Inject script
+                // Safely inject and execute script
                 const scriptElement = document.createElement('div');
-                scriptElement.innerHTML = selectedScript.script;
+                scriptElement.className = 'popup-ad-script-container';
+                scriptElement.style.display = 'none';
                 document.body.appendChild(scriptElement);
+
+                executeAdScript(scriptElement, selectedScript.script);
 
                 // Increment count
                 incrementAdCount('popup');

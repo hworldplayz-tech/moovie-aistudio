@@ -141,10 +141,20 @@ export async function shouldShowAd(
 export async function getAdSettings() {
     try {
         const response = await fetch('/api/admin/ads/settings');
-        if (!response.ok) throw new Error('Failed to fetch settings');
-        return await response.json();
-    } catch (error) {
-        console.error('Error fetching ad settings:', error);
+        if (!response.ok) {
+            return {
+                masterEnabled: true,
+                testMode: false,
+                popupFrequencyCap: 2
+            };
+        }
+        const data = await response.json();
+        return data || {
+            masterEnabled: true,
+            testMode: false,
+            popupFrequencyCap: 2
+        };
+    } catch {
         return {
             masterEnabled: true,
             testMode: false,
@@ -154,16 +164,29 @@ export async function getAdSettings() {
 }
 
 /**
- * Get ad scripts by type
+ * Get ad scripts by type with flexible type matching
  */
 export async function getAdScriptsByType(adType: string) {
     try {
         const response = await fetch('/api/admin/ads/scripts');
-        if (!response.ok) throw new Error('Failed to fetch scripts');
+        if (!response.ok) return [];
         const scripts = await response.json();
-        return scripts.filter((s: any) => s.adType === adType && s.isEnabled);
-    } catch (error) {
-        console.error('Error fetching ad scripts:', error);
+        if (!Array.isArray(scripts)) return [];
+
+        return scripts.filter((s: any) => {
+            if (!s || !s.isEnabled) return false;
+            if (s.adType === adType) return true;
+            // Flexible matching for banners (e.g. 'banner' matching 'banner_728x90')
+            if (adType.startsWith('banner') && (s.adType === 'banner' || s.adType.startsWith('banner'))) {
+                return true;
+            }
+            // Flexible matching for popups/popunders
+            if ((adType === 'popup' || adType === 'popunder') && (s.adType === 'popup' || s.adType === 'popunder')) {
+                return true;
+            }
+            return false;
+        });
+    } catch {
         return [];
     }
 }
@@ -193,22 +216,23 @@ export async function getZoneConfig(positionId: string) {
         if (!zonesPromise) {
             zonesPromise = fetch('/api/admin/ads/zones')
                 .then(r => {
-                    if (!r.ok) throw new Error('Failed');
+                    if (!r.ok) return [];
                     return r.json();
                 })
                 .then(data => {
-                    zonesCache = data;
-                    return data;
+                    const list = Array.isArray(data) ? data : [];
+                    zonesCache = list;
+                    return list;
                 })
                 .catch(err => {
-                    console.error('Error loading zones:', err);
                     zonesPromise = null; // Reset on error
                     return [];
                 });
         }
 
         const zones = await zonesPromise;
-        return zones.find((z: any) => z.position === positionId && z.isEnabled) || null;
+        if (!Array.isArray(zones)) return null;
+        return zones.find((z: any) => z && z.position === positionId && z.isEnabled) || null;
     } catch (error) {
         console.error('Error fetching zone config:', error);
         return null;

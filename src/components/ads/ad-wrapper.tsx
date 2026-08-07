@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react';
 import { shouldShowAd, getAdSettings, getAdScriptsByType, selectRandomScript, getZoneConfig } from '@/lib/ad-utils';
+import { AdContainer } from './ad-container';
 
 interface AdWrapperProps {
     adType: string;
@@ -14,6 +15,7 @@ interface AdWrapperProps {
 export default function AdWrapper({ adType, position, className = '', lazyLoad = true, children }: AdWrapperProps) {
     const [adScript, setAdScript] = useState<string | null>(null);
     const [isVisible, setIsVisible] = useState(!lazyLoad);
+    const [hasLoaded, setHasLoaded] = useState(false);
     const [shouldDisplay, setShouldDisplay] = useState(false);
     const adRef = useRef<HTMLDivElement>(null);
 
@@ -56,6 +58,7 @@ export default function AdWrapper({ adType, position, className = '', lazyLoad =
                         // If zone exists but is disabled, don't show
                         if (!zone.isEnabled) {
                             setShouldDisplay(false);
+                            setHasLoaded(true);
                             return;
                         }
 
@@ -79,6 +82,7 @@ export default function AdWrapper({ adType, position, className = '', lazyLoad =
 
                 if (!canShow) {
                     setShouldDisplay(false);
+                    setHasLoaded(true);
                     return;
                 }
 
@@ -87,6 +91,7 @@ export default function AdWrapper({ adType, position, className = '', lazyLoad =
 
                 if (scripts.length === 0) {
                     setShouldDisplay(false);
+                    setHasLoaded(true);
                     return;
                 }
 
@@ -105,17 +110,22 @@ export default function AdWrapper({ adType, position, className = '', lazyLoad =
                 if (selectedScript) {
                     setAdScript(selectedScript.script);
                     setShouldDisplay(true);
+                } else {
+                    setShouldDisplay(false);
                 }
             } catch (error) {
                 console.error('Error loading ad:', error);
                 setShouldDisplay(false);
+            } finally {
+                setHasLoaded(true);
             }
         };
 
         loadAd();
     }, [isVisible, adType, position]);
 
-    if (!shouldDisplay || !adScript) {
+    // Don't render empty container if finished loading and no ad to show
+    if (hasLoaded && (!shouldDisplay || !adScript)) {
         return null;
     }
 
@@ -127,10 +137,9 @@ export default function AdWrapper({ adType, position, className = '', lazyLoad =
             data-ad-position={position}
         >
             {children}
-            <div
-                className="ad-content"
-                dangerouslySetInnerHTML={{ __html: adScript }}
-            />
+            {shouldDisplay && adScript && (
+                <AdContainer html={adScript} className="ad-content flex justify-center items-center my-1 min-h-[50px]" />
+            )}
         </div>
     );
 }

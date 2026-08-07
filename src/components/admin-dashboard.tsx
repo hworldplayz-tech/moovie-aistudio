@@ -530,19 +530,27 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
       </div>
 
       <Tabs defaultValue="content" className="w-full">
-        <TabsList>
-          <TabsTrigger value="content">Content</TabsTrigger>
-          {user?.role === 'admin' && <TabsTrigger value="requests">Partner Applications</TabsTrigger>}
-          <TabsTrigger value="livetv" className="flex items-center gap-2">
-            <Tv className="h-4 w-4" /> Live TV
-          </TabsTrigger>
-          <TabsTrigger value="player" className="flex items-center gap-2">
-            <Video className="h-4 w-4" /> Player Builder
-          </TabsTrigger>
-          <TabsTrigger value="ads" className="flex items-center gap-2">
-            <DollarSign className="h-4 w-4" /> Ads Management
-          </TabsTrigger>
-        </TabsList>
+        <div className="w-full overflow-x-auto pb-1 max-w-full no-scrollbar">
+          <TabsList className="inline-flex h-auto p-1 bg-muted rounded-lg w-max min-w-full justify-start gap-1">
+            <TabsTrigger value="content" className="text-xs sm:text-sm py-2 px-3 shrink-0 whitespace-nowrap">
+              Content
+            </TabsTrigger>
+            {user?.role === 'admin' && (
+              <TabsTrigger value="requests" className="text-xs sm:text-sm py-2 px-3 shrink-0 whitespace-nowrap">
+                Partner Applications
+              </TabsTrigger>
+            )}
+            <TabsTrigger value="livetv" className="text-xs sm:text-sm py-2 px-3 shrink-0 whitespace-nowrap flex items-center gap-1.5">
+              <Tv className="h-3.5 w-3.5 sm:h-4 sm:w-4" /> Live TV
+            </TabsTrigger>
+            <TabsTrigger value="player" className="text-xs sm:text-sm py-2 px-3 shrink-0 whitespace-nowrap flex items-center gap-1.5">
+              <Video className="h-3.5 w-3.5 sm:h-4 sm:w-4" /> Player Builder
+            </TabsTrigger>
+            <TabsTrigger value="ads" className="text-xs sm:text-sm py-2 px-3 shrink-0 whitespace-nowrap flex items-center gap-1.5">
+              <DollarSign className="h-3.5 w-3.5 sm:h-4 sm:w-4" /> Ads Management
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
         <TabsContent value="content">
           <Separator className="my-4" />
@@ -1180,12 +1188,12 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
               <Card key={channel.id} className="relative group">
                 <CardHeader>
                   <CardTitle className="text-lg">{channel.title}</CardTitle>
-                  <CardDescription>
+                  <div className="text-sm text-muted-foreground pt-1">
                     <span className="flex items-center gap-2">
                       <Badge variant="outline">{channel.country}</Badge>
                       {channel.streamUrl ? <Badge>Direct</Badge> : <Badge variant="secondary">Embed</Badge>}
                     </span>
-                  </CardDescription>
+                  </div>
                 </CardHeader>
                 <CardContent>
                   <p className="text-sm text-muted-foreground line-clamp-2 mb-4">{channel.description}</p>

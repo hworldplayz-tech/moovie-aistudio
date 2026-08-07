@@ -546,18 +546,18 @@ export async function createAdScript(script: Omit<AdScript, 'id' | 'createdAt'>)
 
 export async function getAdScripts(networkId?: string): Promise<AdScript[]> {
     try {
-        let q;
+        let snapshot;
         if (networkId) {
-            q = query(
+            const q = query(
                 collection(db, AD_SCRIPTS_COLLECTION),
-                where('networkId', '==', networkId),
-                orderBy('createdAt', 'desc')
+                where('networkId', '==', networkId)
             );
+            snapshot = await getDocs(q);
         } else {
-            q = query(collection(db, AD_SCRIPTS_COLLECTION), orderBy('createdAt', 'desc'));
+            snapshot = await getDocs(collection(db, AD_SCRIPTS_COLLECTION));
         }
-        const snapshot = await getDocs(q);
-        return snapshot.docs.map(doc => doc.data() as AdScript);
+        const scripts = snapshot.docs.map(doc => doc.data() as AdScript);
+        return scripts.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
     } catch (error) {
         console.error('Error fetching ad scripts:', error);
         return [];
@@ -609,18 +609,18 @@ export async function createAdZone(zone: Omit<AdZone, 'id' | 'createdAt'>): Prom
 
 export async function getAdZones(page?: string): Promise<AdZone[]> {
     try {
-        let q;
+        let snapshot;
         if (page) {
-            q = query(
+            const q = query(
                 collection(db, AD_ZONES_COLLECTION),
-                where('page', 'in', [page, 'all']),
-                orderBy('createdAt', 'desc')
+                where('page', 'in', [page, 'all'])
             );
+            snapshot = await getDocs(q);
         } else {
-            q = query(collection(db, AD_ZONES_COLLECTION), orderBy('createdAt', 'desc'));
+            snapshot = await getDocs(collection(db, AD_ZONES_COLLECTION));
         }
-        const snapshot = await getDocs(q);
-        return snapshot.docs.map(doc => doc.data() as AdZone);
+        const zones = snapshot.docs.map(doc => doc.data() as AdZone);
+        return zones.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
     } catch (error) {
         console.error('Error fetching ad zones:', error);
         return [];
@@ -674,8 +674,7 @@ export async function getAdSettings(): Promise<AdSettings> {
         // Create default settings
         await setDoc(docRef, defaultSettings);
         return defaultSettings;
-    } catch (error) {
-        console.error('Error fetching ad settings:', error);
+    } catch {
         return {
             id: 'global',
             masterEnabled: true,
