@@ -119,7 +119,7 @@ export type CustomPlayer = {
 // --- ADS MANAGEMENT SYSTEM ---
 
 export type AdType = 'popup' | 'banner_728x90' | 'banner_468x60' | 'banner_300x250' |
-  'native' | 'social_bar' | 'direct_link' | 'video' | 'in_page_push';
+  'native' | 'social_bar' | 'bottom_sticky' | 'direct_link' | 'video' | 'in_page_push';
 
 export type AdNetwork = {
   id: string;
