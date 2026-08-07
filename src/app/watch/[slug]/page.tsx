@@ -11,6 +11,7 @@ import { CommentSection } from '@/components/comment-section';
 import type { Content } from '@/lib/definitions';
 import { Button } from '@/components/ui/button';
 import { CastSection } from '@/components/cast-section';
+import { RelatedMoviesSection } from '@/components/related-movies-section';
 import { Separator } from '@/components/ui/separator';
 import {
   DropdownMenu,
@@ -258,6 +259,7 @@ export default async function WatchPage({ params }: WatchPageProps) {
       }
 
       <Separator />
+      <RelatedMoviesSection currentContent={content} />
 
       <Separator />
       <CommentSection contentId={String(content.id)} />

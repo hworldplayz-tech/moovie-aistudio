@@ -47,6 +47,17 @@ export async function updatePaginationLimit(newLimit: number): Promise<{ success
 
 
 
+export async function getRelatedSettings(): Promise<{
+  relatedItemsCount: number;
+  relatedLayout: 'grid' | 'slider';
+}> {
+  const config = await getSiteConfigFromFirestore();
+  return {
+    relatedItemsCount: typeof config.relatedItemsCount === 'number' && config.relatedItemsCount > 0 ? config.relatedItemsCount : 6,
+    relatedLayout: config.relatedLayout || 'grid',
+  };
+}
+
 export async function getSecureDownloadSettings(): Promise<{
   enabled: boolean;
   delay: number;

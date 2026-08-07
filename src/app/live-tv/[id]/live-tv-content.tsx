@@ -9,6 +9,7 @@ import { ArrowLeft, Share2, AlertTriangle, Info } from 'lucide-react';
 import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { RelatedChannelsSection } from '@/components/related-channels-section';
 
 interface LiveTvContentProps {
     channel: LiveChannel;
@@ -108,10 +109,12 @@ export default function LiveTvContent({ channel }: LiveTvContentProps) {
                     </div>
 
                     <div className="md:col-span-1">
-                        {/* Sidebar placeholder - could arguably just simple card for tags or something, 
-                             but current layout puts tags in header. Keeping main layout simple. */}
+                        {/* Sidebar placeholder */}
                     </div>
                 </div>
+
+                {/* Related Channels Section */}
+                <RelatedChannelsSection currentChannel={channel} />
             </div>
         </div>
     );

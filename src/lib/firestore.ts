@@ -99,6 +99,8 @@ export type SiteConfig = {
     titleSuffix?: string;
     showFeaturedSection?: boolean;
     featuredLayout?: 'slider' | 'grid' | 'list';
+    relatedItemsCount?: number;
+    relatedLayout?: 'grid' | 'slider';
 }
 
 export async function getSiteConfigFromFirestore(): Promise<SiteConfig> {

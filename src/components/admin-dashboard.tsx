@@ -116,6 +116,8 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
   const [titleSuffix, setTitleSuffix] = useState('Hindi Dubbed');
   const [showFeaturedSection, setShowFeaturedSection] = useState(true);
   const [featuredLayout, setFeaturedLayout] = useState<'slider' | 'grid' | 'list'>('slider');
+  const [relatedItemsCount, setRelatedItemsCount] = useState<number>(6);
+  const [relatedLayout, setRelatedLayout] = useState<'grid' | 'slider'>('grid');
   const [isSavingSettings, setIsSavingSettings] = useState(false);
 
   // Domain Migration Tool
@@ -149,6 +151,8 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
       setTitleSuffix(siteConfig.titleSuffix || 'Hindi Dubbed');
       setShowFeaturedSection(siteConfig.showFeaturedSection !== undefined ? siteConfig.showFeaturedSection : true);
       setFeaturedLayout(siteConfig.featuredLayout || 'slider');
+      setRelatedItemsCount(siteConfig.relatedItemsCount || 6);
+      setRelatedLayout(siteConfig.relatedLayout || 'grid');
 
 
       let myContent = localContent;
@@ -407,7 +411,9 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
         siteTitle,
         titleSuffix,
         showFeaturedSection,
-        featuredLayout
+        featuredLayout,
+        relatedItemsCount,
+        relatedLayout
       });
 
       if (logoResult.success && limitResult.success && secureResult.success) {
@@ -700,6 +706,59 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
                           </div>
                         </div>
                       )}
+                    </div>
+
+                    <div className="space-y-4 border p-4 rounded-lg bg-emerald-50/50 dark:bg-emerald-950/20">
+                      <div className="space-y-1">
+                        <Label className="text-base font-medium text-emerald-900 dark:text-emerald-300">Related Movies & Channels Settings</Label>
+                        <p className="text-sm text-emerald-700 dark:text-emerald-400">Configure layout and display limits for related content on watch pages.</p>
+                      </div>
+
+                      <div className="grid md:grid-cols-2 gap-4 pt-1">
+                        <div className="space-y-2">
+                          <Label htmlFor="relatedItemsCount">Initial Cards to Display</Label>
+                          <Input
+                            id="relatedItemsCount"
+                            type="number"
+                            min="1"
+                            max="30"
+                            value={relatedItemsCount}
+                            onChange={(e) => setRelatedItemsCount(Math.max(1, Number(e.target.value)))}
+                            disabled={isSavingSettings}
+                          />
+                          <p className="text-xs text-muted-foreground">Default is 6 cards before clicking "Load More".</p>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label className="mb-2 block">Display Layout Style</Label>
+                          <div className="flex gap-6 pt-1">
+                            <div className="flex items-center space-x-2">
+                              <input
+                                type="radio"
+                                id="related-layout-grid"
+                                name="relatedLayout"
+                                value="grid"
+                                checked={relatedLayout === 'grid'}
+                                onChange={() => setRelatedLayout('grid')}
+                                className="accent-emerald-600 h-4 w-4"
+                              />
+                              <Label htmlFor="related-layout-grid" className="cursor-pointer font-medium">Grid</Label>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <input
+                                type="radio"
+                                id="related-layout-slider"
+                                name="relatedLayout"
+                                value="slider"
+                                checked={relatedLayout === 'slider'}
+                                onChange={() => setRelatedLayout('slider')}
+                                className="accent-emerald-600 h-4 w-4"
+                              />
+                              <Label htmlFor="related-layout-slider" className="cursor-pointer font-medium">Slider (Carousel)</Label>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
                     </div>
 
                     <div className="flex items-center justify-between space-x-2">
