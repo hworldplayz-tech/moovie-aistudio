@@ -1,4 +1,4 @@
-import { getContentById } from '@/lib/tmdb';
+import { getContentById, getManuallyAddedContent } from '@/lib/tmdb';
 import { getSiteConfigFromFirestore, getContentBySlug } from '@/lib/firestore';
 import { getSecureDownloadSettings } from '@/app/admin/actions';
 import Image from 'next/image';
@@ -38,9 +38,6 @@ type WatchPageProps = {
 
 async function resolveContentFromSlug(slug: string) {
   let manualItem = await getContentBySlug(slug);
-  if (manualItem) {
-    return { content: manualItem, manualItem };
-  }
 
   let typeOverride: 'movie' | 'tv' | undefined = undefined;
   let cleanSlug = slug;
@@ -57,8 +54,87 @@ async function resolveContentFromSlug(slug: string) {
   const contentId = idMatch ? idMatch[1] : cleanSlug;
   const expectedKeywords = cleanSlug.replace(/^\d+[-_]?/, '');
 
-  const content = await getContentById(contentId, typeOverride, expectedKeywords);
-  return { content, manualItem: null };
+  const manuallyAdded = await getManuallyAddedContent();
+
+  const isMatch = (m: Content, targetId?: string, targetTitle?: string) => {
+    const mId = String(m.id);
+    const cleanMId = mId.replace(/^(movie|tv)-/, '');
+    const cleanContentId = contentId.replace(/^(movie|tv)-/, '');
+    
+    if (
+      mId === slug || 
+      mId === cleanSlug || 
+      mId === contentId || 
+      cleanMId === cleanContentId ||
+      (targetId && (mId === String(targetId) || cleanMId === String(targetId).replace(/^(movie|tv)-/, '')))
+    ) {
+      return true;
+    }
+    if (m.slug && (m.slug === slug || m.slug === cleanSlug)) {
+      return true;
+    }
+    if (targetTitle && m.title && m.title.toLowerCase().trim() === targetTitle.toLowerCase().trim()) {
+      return true;
+    }
+    return false;
+  };
+
+  if (!manualItem) {
+    manualItem = manuallyAdded.find(c => isMatch(c)) || null;
+  }
+
+  const apiContent = await getContentById(contentId, typeOverride, expectedKeywords);
+
+  if (!manualItem && apiContent) {
+    manualItem = manuallyAdded.find(c => isMatch(c, String(apiContent.id), apiContent.title)) || null;
+  }
+
+  let finalContent: Content | null = null;
+  if (manualItem) {
+    finalContent = {
+      ...(apiContent || {} as Content),
+      ...manualItem,
+      id: manualItem.id || apiContent?.id || contentId,
+      title: manualItem.title || apiContent?.title || 'Untitled',
+      description: manualItem.description || apiContent?.description || '',
+      posterPath: manualItem.posterPath || apiContent?.posterPath || '',
+      backdropPath: manualItem.backdropPath || apiContent?.backdropPath || '',
+      downloadLinks: (manualItem.downloadLinks && manualItem.downloadLinks.length > 0) 
+        ? manualItem.downloadLinks 
+        : (apiContent?.downloadLinks || []),
+      downloadLink: manualItem.downloadLink || apiContent?.downloadLink,
+      trailerUrl: manualItem.trailerUrl || apiContent?.trailerUrl,
+      inLibrary: true,
+      isTmdbOnly: false,
+    };
+  } else if (apiContent) {
+    finalContent = apiContent;
+  }
+
+  if (!finalContent) {
+    return { content: null, manualItem: null, isTmdbOnly: true };
+  }
+
+  const hasDownloadLinks = !!(
+    (finalContent.downloadLinks && finalContent.downloadLinks.length > 0) ||
+    finalContent.downloadLink
+  );
+
+  const isInLibrary = !!(
+    manualItem ||
+    finalContent.inLibrary === true ||
+    finalContent.isTmdbOnly === false ||
+    hasDownloadLinks ||
+    manuallyAdded.some(m => isMatch(m, String(finalContent.id), finalContent.title))
+  );
+
+  const isTmdbOnly = !isInLibrary;
+
+  return { 
+    content: finalContent, 
+    manualItem: isInLibrary ? (manualItem || finalContent) : null,
+    isTmdbOnly 
+  };
 }
 
 export async function generateMetadata({ params }: WatchPageProps): Promise<Metadata> {
@@ -110,13 +186,11 @@ export async function generateMetadata({ params }: WatchPageProps): Promise<Meta
 
 export default async function WatchPage({ params }: WatchPageProps) {
   const { slug } = await params;
-  const { content, manualItem } = await resolveContentFromSlug(slug);
+  const { content, isTmdbOnly } = await resolveContentFromSlug(slug);
 
   if (!content) {
     notFound();
   }
-
-  const isTmdbOnly = !manualItem;
 
   // Combine tags
   const allTags = [
@@ -148,26 +222,30 @@ export default async function WatchPage({ params }: WatchPageProps) {
             )}
             <div className="relative z-10 max-w-lg space-y-3">
               <Badge variant="outline" className="border-amber-400/60 text-amber-400 bg-amber-400/10 px-3 py-1">
-                Content Request
+                {isTmdbOnly ? "Content Request" : "No Video Link"}
               </Badge>
               <h2 className="text-xl md:text-2xl font-bold text-white">
-                "{content.title}" is available on request!
+                {isTmdbOnly ? `"${content.title}" is available on request!` : content.title}
               </h2>
               <p className="text-sm text-muted-foreground">
-                This title hasn't been uploaded to our library yet. Send an upload request to notify our team!
+                {isTmdbOnly 
+                  ? "This title hasn't been uploaded to our library yet. Send an upload request to notify our team!"
+                  : "No video trailer link is available for this title."}
               </p>
-              <div className="pt-2">
-                <RequestUploadButton
-                  tmdbId={content.id}
-                  title={content.title}
-                  posterPath={content.posterPath}
-                  backdropPath={content.backdropPath}
-                  type={content.type}
-                  releaseDate={content.releaseDate}
-                  size="lg"
-                  className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-semibold"
-                />
-              </div>
+              {isTmdbOnly && (
+                <div className="pt-2">
+                  <RequestUploadButton
+                    tmdbId={content.id}
+                    title={content.title}
+                    posterPath={content.posterPath}
+                    backdropPath={content.backdropPath}
+                    type={content.type}
+                    releaseDate={content.releaseDate}
+                    size="lg"
+                    className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-semibold"
+                  />
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -225,25 +303,28 @@ export default async function WatchPage({ params }: WatchPageProps) {
                 </Button>
               )}
 
-              {/* Request to Upload / Add Button placed right after Play Now / Watch Trailer */}
-              <RequestUploadButton
-                tmdbId={content.id}
-                title={content.title}
-                posterPath={content.posterPath}
-                backdropPath={content.backdropPath}
-                type={content.type}
-                releaseDate={content.releaseDate}
-                size="lg"
-                variant={isTmdbOnly ? "default" : "outline"}
-                className={isTmdbOnly ? "bg-amber-500 hover:bg-amber-600 text-slate-950 font-medium" : ""}
-              />
+              {/* Request to Upload Button - ONLY for TMDB items NOT in library */}
+              {isTmdbOnly && (
+                <RequestUploadButton
+                  tmdbId={content.id}
+                  title={content.title}
+                  posterPath={content.posterPath}
+                  backdropPath={content.backdropPath}
+                  type={content.type}
+                  releaseDate={content.releaseDate}
+                  size="lg"
+                  variant="default"
+                  className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-medium"
+                />
+              )}
 
-              {/* Download Button Logic */
-                (!isTmdbOnly && globalEnabled) && (
+              {/* Download Button Logic - FOR ITEMS IN LIBRARY */}
+              {!isTmdbOnly && globalEnabled && (
+                ((content.downloadLinks && content.downloadLinks.length > 0) || content.downloadLink) ? (
                   content.downloadLinks && content.downloadLinks.length > 1 ? (
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button size="lg" variant="outline">
+                        <Button size="lg" className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-md">
                           <Download className="mr-2 h-5 w-5" />
                           Download
                           <ChevronDown className="ml-2 h-4 w-4" />
@@ -265,22 +346,26 @@ export default async function WatchPage({ params }: WatchPageProps) {
                       </DropdownMenuContent>
                     </DropdownMenu>
                   ) : (
-                    (content.downloadLink || (content.downloadLinks && content.downloadLinks.length === 1)) && (
-                      <Button asChild size="lg" variant="outline">
-                        <Link
-                          href={secureEnabled
-                            ? `/download?id=${content.id}`
-                            : (content.downloadLink || (content.downloadLinks ? content.downloadLinks[0].url : '#'))}
-                          target={secureEnabled ? "_self" : "_blank"}
-                          rel="noopener noreferrer"
-                        >
-                          <Download className="mr-2 h-5 w-5" />
-                          Download
-                        </Link>
-                      </Button>
-                    )
-                  ))
-              }
+                    <Button asChild size="lg" className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-md">
+                      <Link
+                        href={secureEnabled
+                          ? `/download?id=${content.id}`
+                          : (content.downloadLink || (content.downloadLinks ? content.downloadLinks[0].url : '#'))}
+                        target={secureEnabled ? "_self" : "_blank"}
+                        rel="noopener noreferrer"
+                      >
+                        <Download className="mr-2 h-5 w-5" />
+                        Download
+                      </Link>
+                    </Button>
+                  )
+                ) : (
+                  <Button size="lg" variant="outline" disabled className="font-semibold opacity-80">
+                    <Download className="mr-2 h-5 w-5" />
+                    No Download Link
+                  </Button>
+                )
+              )}
               <ShareButton title={content.title} url={`/watch/${slug}`} />
             </div>
 
