@@ -33,6 +33,23 @@ export type Content = {
   country?: string;
   isFeatured?: boolean;
   slug?: string; // SEO-friendly URL slug (e.g., "download-avatar-fire-and-ash")
+  inLibrary?: boolean; // Whether the item is in local uploaded library
+  isTmdbOnly?: boolean; // True if item comes directly from TMDB search and not uploaded yet
+};
+
+export type ContentRequest = {
+  id?: string;
+  tmdbId: string;
+  title: string;
+  posterPath: string;
+  backdropPath: string;
+  type: 'movie' | 'tv';
+  releaseDate?: string;
+  requestedAt: string;
+  updatedAt?: string;
+  requestCount: number;
+  status: 'pending' | 'fulfilled' | 'rejected';
+  notes?: string;
 };
 
 export type SystemUser = {

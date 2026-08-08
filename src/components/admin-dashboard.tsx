@@ -6,7 +6,7 @@ import { getBrowseContent, getManuallyAddedContent } from '@/lib/tmdb';
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
-import { Film, Tv, History, PlusCircle, Loader2, Settings, Trash2, RefreshCw, Search, Edit, Video, DollarSign } from 'lucide-react';
+import { Film, Tv, History, PlusCircle, Loader2, Settings, Trash2, RefreshCw, Search, Edit, Video, DollarSign, Send, CheckCircle, XCircle } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ContentCard } from './content-card';
 import { Separator } from './ui/separator';
@@ -15,7 +15,7 @@ import { useToast } from '@/hooks/use-toast';
 import { ContentFormDialog } from './content-form-dialog';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
-import { getLogoText, updateLogoText, getPaginationLimit, updatePaginationLimit, syncContentMetadata, getSecureDownloadSettings, updateSecureDownloadSettings, migrateDownloadDomains } from '@/app/admin/actions';
+import { getLogoText, updateLogoText, getPaginationLimit, updatePaginationLimit, syncContentMetadata, getSecureDownloadSettings, updateSecureDownloadSettings, migrateDownloadDomains, getContentRequestsAction, updateContentRequestStatusAction, deleteContentRequestAction, addContent } from '@/app/admin/actions';
 import {
   getContentFromFirestore,
   addContentToFirestore,
@@ -52,7 +52,7 @@ import {
 } from "@/components/ui/dialog"
 import { Checkbox } from './ui/checkbox';
 import { Switch } from './ui/switch';
-import type { Content, SystemUser, PartnerRequest, LiveChannel } from '@/lib/definitions';
+import type { Content, SystemUser, PartnerRequest, LiveChannel, ContentRequest } from '@/lib/definitions';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
@@ -86,6 +86,8 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
   const [recentlyAdded, setRecentlyAdded] = useState<Content[]>([]);
   // filteredContent state removed, derived below
   const [partnerRequests, setPartnerRequests] = useState<PartnerRequest[]>([]);
+  const [contentRequests, setContentRequests] = useState<ContentRequest[]>([]);
+  const [addingRequestTmdbId, setAddingRequestTmdbId] = useState<string | null>(null);
 
   const [isSyncing, setIsSyncing] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -163,8 +165,12 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
         myContent = localContent.filter(c => c.uploadedBy === user.id || c.uploadedBy === user.username);
       } else if (user?.role === 'admin') {
         // Fetch requests if admin
-        const requests = await getPartnerRequests();
+        const [requests, userContentRequests] = await Promise.all([
+          getPartnerRequests(),
+          getContentRequestsAction()
+        ]);
         setPartnerRequests(requests);
+        setContentRequests(userContentRequests);
       }
 
       // Sort by createdAt (newest first)
@@ -508,6 +514,63 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
 
   // filteredContent declaration removed from here
 
+  const handleQuickAddContentRequest = async (req: ContentRequest) => {
+    setAddingRequestTmdbId(req.tmdbId);
+    try {
+      const res = await addContent(req.tmdbId, req.type);
+      if (res.success) {
+        await updateContentRequestStatusAction(req.tmdbId, 'fulfilled');
+        toast({
+          title: 'Import Successful!',
+          description: `"${req.title}" has been added to your site library.`,
+        });
+        fetchDashboardData();
+      } else {
+        toast({
+          title: 'Import Failed',
+          description: res.error || 'Could not fetch details from TMDB.',
+          variant: 'destructive',
+        });
+      }
+    } catch (error) {
+      console.error('Error importing content request:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to import request.',
+        variant: 'destructive',
+      });
+    } finally {
+      setAddingRequestTmdbId(null);
+    }
+  };
+
+  const handleUpdateContentRequestStatus = async (id: string, status: 'pending' | 'fulfilled' | 'rejected') => {
+    try {
+      await updateContentRequestStatusAction(id, status);
+      toast({
+        title: 'Status Updated',
+        description: `Request marked as ${status}.`,
+      });
+      const updated = await getContentRequestsAction();
+      setContentRequests(updated);
+    } catch (err) {
+      console.error('Failed to update status:', err);
+    }
+  };
+
+  const handleDeleteContentRequest = async (id: string) => {
+    try {
+      await deleteContentRequestAction(id);
+      toast({
+        title: 'Request Deleted',
+      });
+      const updated = await getContentRequestsAction();
+      setContentRequests(updated);
+    } catch (err) {
+      console.error('Failed to delete request:', err);
+    }
+  };
+
   return (
     <div className="p-4 md:p-8 space-y-8">
       <h1 className="text-3xl font-bold">Admin Dashboard</h1>
@@ -542,9 +605,19 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
               Content
             </TabsTrigger>
             {user?.role === 'admin' && (
-              <TabsTrigger value="requests" className="text-xs sm:text-sm py-2 px-3 shrink-0 whitespace-nowrap">
-                Partner Applications
-              </TabsTrigger>
+              <>
+                <TabsTrigger value="requests" className="text-xs sm:text-sm py-2 px-3 shrink-0 whitespace-nowrap">
+                  Partner Applications
+                </TabsTrigger>
+                <TabsTrigger value="content_requests" className="text-xs sm:text-sm py-2 px-3 shrink-0 whitespace-nowrap flex items-center gap-1.5">
+                  <Send className="h-3.5 w-3.5 sm:h-4 sm:w-4" /> Content Requests
+                  {contentRequests.filter(r => r.status === 'pending').length > 0 && (
+                    <Badge variant="destructive" className="ml-1 px-1.5 py-0 text-[10px] h-4">
+                      {contentRequests.filter(r => r.status === 'pending').length}
+                    </Badge>
+                  )}
+                </TabsTrigger>
+              </>
             )}
             <TabsTrigger value="livetv" className="text-xs sm:text-sm py-2 px-3 shrink-0 whitespace-nowrap flex items-center gap-1.5">
               <Tv className="h-3.5 w-3.5 sm:h-4 sm:w-4" /> Live TV
@@ -1129,6 +1202,132 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
               </DialogFooter>
             </DialogContent>
           </Dialog>
+        </TabsContent>
+
+        <TabsContent value="content_requests">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center justify-between">
+                <span>User Content Requests</span>
+                <Badge variant="outline" className="text-xs">
+                  {contentRequests.length} Total Requests
+                </Badge>
+              </CardTitle>
+              <CardDescription>
+                Movies and TV Series requested by users. Click "Import to Library" to automatically add the content from TMDB into your site library.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Poster</TableHead>
+                    <TableHead>Title & Details</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead className="text-center">Request Count</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Requested Date</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {contentRequests.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                        No content requests received yet.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    contentRequests.map((req) => (
+                      <TableRow key={req.id || req.tmdbId}>
+                        <TableCell className="w-16">
+                          {req.posterPath ? (
+                            <img
+                              src={req.posterPath.startsWith('http') ? req.posterPath : `https://image.tmdb.org/t/p/w92${req.posterPath}`}
+                              alt={req.title}
+                              className="w-10 h-14 object-cover rounded shadow-sm"
+                            />
+                          ) : (
+                            <div className="w-10 h-14 bg-muted rounded flex items-center justify-center text-xs text-muted-foreground">
+                              No Image
+                            </div>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <div className="font-semibold text-foreground">{req.title}</div>
+                          <div className="text-xs text-muted-foreground">
+                            TMDB ID: {req.tmdbId} {req.releaseDate ? `• (${req.releaseDate.split('-')[0]})` : ''}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="capitalize">
+                            {req.type === 'tv' ? 'TV Series' : 'Movie'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Badge variant="secondary" className="font-bold px-2 py-0.5">
+                            🔥 {req.requestCount || 1}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={req.status === 'fulfilled' ? "default" : req.status === 'rejected' ? "destructive" : "secondary"}>
+                            {req.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground">
+                          {req.requestedAt ? new Date(req.requestedAt).toLocaleDateString() : 'N/A'}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            {req.status === 'pending' && (
+                              <Button
+                                size="sm"
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                                disabled={addingRequestTmdbId === req.tmdbId}
+                                onClick={() => handleQuickAddContentRequest(req)}
+                              >
+                                {addingRequestTmdbId === req.tmdbId ? (
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
+                                ) : (
+                                  <PlusCircle className="h-3.5 w-3.5 mr-1" />
+                                )}
+                                Import to Library
+                              </Button>
+                            )}
+
+                            {req.status === 'pending' && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleUpdateContentRequestStatus(req.tmdbId, 'rejected')}
+                              >
+                                Reject
+                              </Button>
+                            )}
+
+                            {req.status === 'fulfilled' && (
+                              <Badge variant="outline" className="text-emerald-500 border-emerald-500/40">
+                                Added to Library
+                              </Badge>
+                            )}
+
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                              onClick={() => handleDeleteContentRequest(req.tmdbId)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="livetv" className="space-y-6">

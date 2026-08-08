@@ -445,3 +445,62 @@ export async function updateAdSettingsAction(settings: any) {
   return updateAdSettings(settings);
 }
 
+// Content Requests Actions
+export async function submitContentRequestAction(data: {
+  tmdbId: string;
+  title: string;
+  posterPath: string;
+  backdropPath: string;
+  type: 'movie' | 'tv';
+  releaseDate?: string;
+}) {
+  try {
+    const { createOrIncrementContentRequest } = await import('@/lib/firestore');
+    return await createOrIncrementContentRequest(data);
+  } catch (error) {
+    console.error('submitContentRequestAction error:', error);
+    return { success: false, requestCount: 0, message: 'Failed to submit request' };
+  }
+}
+
+export async function getContentRequestsAction() {
+  try {
+    const { getContentRequests } = await import('@/lib/firestore');
+    return await getContentRequests();
+  } catch (error) {
+    console.error('getContentRequestsAction error:', error);
+    return [];
+  }
+}
+
+export async function getContentRequestByTmdbIdAction(tmdbId: string) {
+  try {
+    if (!tmdbId) return null;
+    const { getContentRequestByTmdbId } = await import('@/lib/firestore');
+    return await getContentRequestByTmdbId(tmdbId);
+  } catch (error) {
+    console.error('getContentRequestByTmdbIdAction error:', error);
+    return null;
+  }
+}
+
+export async function updateContentRequestStatusAction(id: string, status: 'pending' | 'fulfilled' | 'rejected') {
+  try {
+    const { updateContentRequestStatus } = await import('@/lib/firestore');
+    return await updateContentRequestStatus(id, status);
+  } catch (error) {
+    console.error('updateContentRequestStatusAction error:', error);
+    return { success: false };
+  }
+}
+
+export async function deleteContentRequestAction(id: string) {
+  try {
+    const { deleteContentRequest } = await import('@/lib/firestore');
+    return await deleteContentRequest(id);
+  } catch (error) {
+    console.error('deleteContentRequestAction error:', error);
+    return { success: false };
+  }
+}
+

@@ -180,6 +180,9 @@ export function ContentCard({
                 priority={priority}
               />
               <div className="absolute top-1 left-1 z-10 flex flex-wrap gap-0.5 items-start max-w-[92%]">
+                {content.isTmdbOnly && (
+                  <Badge variant="outline" className="text-[8px] sm:text-[9px] px-1 h-3.5 sm:h-4 py-0 leading-none bg-amber-500/90 text-slate-950 border-0 font-semibold">Request</Badge>
+                )}
                 {content.quality?.map(q => (
                   <Badge key={q} variant="secondary" className="text-[8px] sm:text-[9px] px-1 h-3.5 sm:h-4 py-0 leading-none">{q}</Badge>
                 ))}

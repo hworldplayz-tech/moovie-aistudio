@@ -2,16 +2,15 @@
 
 import { ContentCard } from "@/components/content-card";
 import { ContentCarousel } from "@/components/content-carousel";
-import { LayoutGrid, List, Search } from "lucide-react";
+import { LayoutGrid, List, Search, Film, Tv, Loader2, ChevronDown } from "lucide-react";
 import { Fragment, useEffect, useState } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useSearchParams } from "next/navigation";
 import { HeroCarousel } from "@/components/hero-carousel";
 import RecommendedContent from "@/components/recommended-content";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { cn, slugify } from "@/lib/utils";
 import { getPaginationLimit, getSecureDownloadSettings } from "@/app/admin/actions";
-import { Loader2, ChevronDown } from "lucide-react";
 import { LiveTvCarousel } from "@/components/live-tv-carousel";
 import { getLiveChannels } from "@/lib/firestore";
 import type { Content, LiveChannel } from "@/lib/definitions";
@@ -51,6 +50,7 @@ export default function BrowseClient({
     const [isLoading, setIsLoading] = useState(false); // Initial load is done server-side
     const [isHeroLoading, setIsHeroLoading] = useState(false);
     const [view, setView] = useState<'grid' | 'list'>('grid');
+    const [searchCategoryTab, setSearchCategoryTab] = useState<'all' | 'movie' | 'tv'>('all');
 
     // Pagination State
     const [visibleCount, setVisibleCount] = useState(initialPaginationLimit);
@@ -79,20 +79,59 @@ export default function BrowseClient({
             setIsLoading(true);
             try {
                 const localContent = await getManuallyAddedContent();
+
+                // If user is searching by query, fetch TMDB API results too
+                let tmdbResults: Content[] = [];
+                if (q && q.trim().length > 0) {
+                    try {
+                        const { searchContent } = await import('@/lib/tmdb');
+                        tmdbResults = await searchContent(q.trim());
+                    } catch (err) {
+                        console.error('TMDB search error:', err);
+                    }
+                }
+
+                // Filter uploaded local content
                 const filteredLocalContent = localContent.filter(item => {
                     if (type && item.type !== type) return false;
                     if (genre && !item.genres?.some(g => String(g) === genre || g.toLowerCase() === genre.toLowerCase())) return false;
                     if (year) {
                         const releaseYear = item.releaseDate ? item.releaseDate.split('-')[0] : '';
-                        const airYear = item.lastAirDate ? item.lastAirDate.split('-')[0] : ''; // Approximation
+                        const airYear = item.lastAirDate ? item.lastAirDate.split('-')[0] : '';
                         if (releaseYear !== year && airYear !== year) return false;
                     }
                     if (region && item.country !== region) return false;
                     if (q && !item.title.toLowerCase().includes(q.toLowerCase())) return false;
                     if (hindiDubbed && !item.isHindiDubbed) return false;
                     return true;
-                });
-                setContent(filteredLocalContent);
+                }).map(item => ({ ...item, inLibrary: true }));
+
+                if (q && q.trim().length > 0) {
+                    const localIds = new Set(localContent.map(c => String(c.id)));
+                    const localTitles = new Set(localContent.map(c => c.title.toLowerCase().trim()));
+
+                    // Filter TMDB results to exclude items already uploaded
+                    const uniqueTmdbItems = tmdbResults
+                        .filter(item => {
+                            if (type && item.type !== type) return false;
+                            if (genre && !item.genres?.some(g => String(g) === genre || g.toLowerCase() === genre.toLowerCase())) return false;
+                            if (year) {
+                                const releaseYear = item.releaseDate ? item.releaseDate.split('-')[0] : '';
+                                if (releaseYear !== year) return false;
+                            }
+                            return !localIds.has(String(item.id)) && !localTitles.has(item.title.toLowerCase().trim());
+                        })
+                        .map(item => ({
+                            ...item,
+                            inLibrary: false,
+                            isTmdbOnly: true,
+                            slug: `${item.type || 'movie'}-${item.id}-${slugify(item.title)}`
+                        }));
+
+                    setContent([...filteredLocalContent, ...uniqueTmdbItems]);
+                } else {
+                    setContent(filteredLocalContent);
+                }
             } catch (e) { console.error(e); }
             setIsLoading(false);
         };
@@ -178,87 +217,129 @@ export default function BrowseClient({
             )}
 
             {/* Main Content Grid */}
-            <section className="space-y-6 animate-in fade-in slide-in-from-bottom-8 duration-700 delay-200">
-                <div className="flex items-center justify-between">
-                    <h2 className="text-2xl font-bold flex items-center gap-2">
-                        {isFilteredView ? (
-                            q ? `Search: ${q}` : 'Filtered Results'
-                        ) : (
-                            <>
-                                <LayoutGrid className="w-6 h-6 text-primary" />
-                                Latest Movies & TV Shows
-                            </>
-                        )}
-                    </h2>
-                    <div className="flex items-center gap-2 bg-muted/50 p-1 rounded-lg">
-                        <Button
-                            variant={view === 'grid' ? 'secondary' : 'ghost'}
-                            size="icon"
-                            onClick={() => setView('grid')}
-                            className="h-8 w-8"
-                        >
-                            <LayoutGrid className="h-4 w-4" />
-                        </Button>
-                        <Button
-                            variant={view === 'list' ? 'secondary' : 'ghost'}
-                            size="icon"
-                            onClick={() => setView('list')}
-                            className="h-8 w-8"
-                        >
-                            <List className="h-4 w-4" />
-                        </Button>
-                    </div>
-                </div>
+            {(() => {
+                const displayedContent = content.filter(item => {
+                    if (searchCategoryTab === 'movie' && item.type !== 'movie') return false;
+                    if (searchCategoryTab === 'tv' && item.type !== 'tv') return false;
+                    return true;
+                });
+                const moviesCount = content.filter(c => c.type === 'movie').length;
+                const tvCount = content.filter(c => c.type === 'tv').length;
 
-                {content.length === 0 ? (
-                    <div className="text-center py-20 text-muted-foreground bg-muted/30 rounded-xl border border-dashed">
-                        <Search className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                        <p className="text-lg">No content found matching your criteria.</p>
-                        {isFilteredView && (
-                            <Button variant="link" onClick={() => window.location.href = '/'}>Clear Filters</Button>
-                        )}
-                    </div>
-                ) : (
-                    <div className={cn(
-                        "grid gap-2.5 sm:gap-4",
-                        view === 'grid'
-                            ? "grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7"
-                            : "grid-cols-1 xl:grid-cols-2 gap-3"
-                    )}>
-                        {content.slice(0, visibleCount).map((item, index) => (
-                            <Fragment key={item.id}>
-                                <ContentCard
-                                    content={item}
-                                    variant={view}
-                                    priority={index < 8} // Prioritize first 8 images
-                                />
-                                {/* In-Feed Native Ad every 12 items */}
-                                {!isFilteredView && (index + 1) % 12 === 0 && (
-                                    <NativeAd
-                                        key={`ad-${index}`}
-                                        position={`homepage_feed_${Math.floor(index / 12)}`}
-                                        className="col-span-full my-4"
-                                    />
+                return (
+                    <section className="space-y-6 animate-in fade-in slide-in-from-bottom-8 duration-700 delay-200">
+                        <div className="flex items-center justify-between">
+                            <h2 className="text-2xl font-bold flex items-center gap-2">
+                                {isFilteredView ? (
+                                    q ? `Search: ${q}` : 'Filtered Results'
+                                ) : (
+                                    <>
+                                        <LayoutGrid className="w-6 h-6 text-primary" />
+                                        Latest Movies & TV Shows
+                                    </>
                                 )}
-                            </Fragment>
-                        ))}
-                    </div>
-                )}
+                            </h2>
+                            <div className="flex items-center gap-2 bg-muted/50 p-1 rounded-lg">
+                                <Button
+                                    variant={view === 'grid' ? 'secondary' : 'ghost'}
+                                    size="icon"
+                                    onClick={() => setView('grid')}
+                                    className="h-8 w-8"
+                                >
+                                    <LayoutGrid className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                    variant={view === 'list' ? 'secondary' : 'ghost'}
+                                    size="icon"
+                                    onClick={() => setView('list')}
+                                    className="h-8 w-8"
+                                >
+                                    <List className="h-4 w-4" />
+                                </Button>
+                            </div>
+                        </div>
 
-                {/* Load More */}
-                {content.length > visibleCount && (
-                    <div className="flex justify-center pt-8">
-                        <Button
-                            variant="outline"
-                            size="lg"
-                            onClick={handleLoadMore}
-                            className="min-w-[200px]"
-                        >
-                            Load More <ChevronDown className="ml-2 h-4 w-4" />
-                        </Button>
-                    </div>
-                )}
-            </section>
+                        {q && (
+                            <div className="flex items-center gap-2 flex-wrap bg-muted/30 p-2 rounded-xl border border-muted-foreground/10">
+                                <span className="text-xs font-semibold text-muted-foreground px-2 hidden sm:inline">Category:</span>
+                                <Button
+                                    variant={searchCategoryTab === 'all' ? 'default' : 'ghost'}
+                                    size="sm"
+                                    onClick={() => setSearchCategoryTab('all')}
+                                    className="rounded-lg text-xs h-8 px-3 font-medium"
+                                >
+                                    All ({content.length})
+                                </Button>
+                                <Button
+                                    variant={searchCategoryTab === 'movie' ? 'default' : 'ghost'}
+                                    size="sm"
+                                    onClick={() => setSearchCategoryTab('movie')}
+                                    className="rounded-lg text-xs h-8 px-3 font-medium flex items-center gap-1.5"
+                                >
+                                    <Film className="h-3.5 w-3.5 text-primary" /> Movies ({moviesCount})
+                                </Button>
+                                <Button
+                                    variant={searchCategoryTab === 'tv' ? 'default' : 'ghost'}
+                                    size="sm"
+                                    onClick={() => setSearchCategoryTab('tv')}
+                                    className="rounded-lg text-xs h-8 px-3 font-medium flex items-center gap-1.5"
+                                >
+                                    <Tv className="h-3.5 w-3.5 text-amber-400" /> TV Series ({tvCount})
+                                </Button>
+                            </div>
+                        )}
+
+                        {displayedContent.length === 0 ? (
+                            <div className="text-center py-20 text-muted-foreground bg-muted/30 rounded-xl border border-dashed">
+                                <Search className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                                <p className="text-lg">No content found matching your criteria.</p>
+                                {isFilteredView && (
+                                    <Button variant="link" onClick={() => window.location.href = '/'}>Clear Filters</Button>
+                                )}
+                            </div>
+                        ) : (
+                            <div className={cn(
+                                "grid gap-2.5 sm:gap-4",
+                                view === 'grid'
+                                    ? "grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7"
+                                    : "grid-cols-1 xl:grid-cols-2 gap-3"
+                            )}>
+                                {displayedContent.slice(0, visibleCount).map((item, index) => (
+                                    <Fragment key={item.id}>
+                                        <ContentCard
+                                            content={item}
+                                            variant={view}
+                                            priority={index < 8} // Prioritize first 8 images
+                                        />
+                                        {/* In-Feed Native Ad every 12 items */}
+                                        {!isFilteredView && (index + 1) % 12 === 0 && (
+                                            <NativeAd
+                                                key={`ad-${index}`}
+                                                position={`homepage_feed_${Math.floor(index / 12)}`}
+                                                className="col-span-full my-4"
+                                            />
+                                        )}
+                                    </Fragment>
+                                ))}
+                            </div>
+                        )}
+
+                        {/* Load More */}
+                        {displayedContent.length > visibleCount && (
+                            <div className="flex justify-center pt-8">
+                                <Button
+                                    variant="outline"
+                                    size="lg"
+                                    onClick={handleLoadMore}
+                                    className="min-w-[200px]"
+                                >
+                                    Load More <ChevronDown className="ml-2 h-4 w-4" />
+                                </Button>
+                            </div>
+                        )}
+                    </section>
+                );
+            })()}
 
             {/* Recommended Section at bottom */}
             {!isFilteredView && (

@@ -171,24 +171,43 @@ export async function getNewReleases(): Promise<Content[]> {
     return (await fetchAndTransformContent(url, 'movie')).slice(0, 12);
 }
 
-export async function getContentById(id: string, type?: 'movie' | 'tv'): Promise<Content | null> {
+export async function getContentById(id: string, type?: 'movie' | 'tv', expectedKeywords?: string): Promise<Content | null> {
     const manuallyAdded = await getManuallyAddedContent();
     const manualItem = manuallyAdded.find(c => String(c.id) === id);
 
     let apiContent: Content | null = null;
 
-    if (type === 'movie' || !type) {
-        let movieContent = await fetchAndTransformSingleContent(`${TMDB_BASE_URL}/movie/${id}?api_key=${TMDB_API_KEY}&append_to_response=videos,credits`, 'movie');
-        if (movieContent) {
-            apiContent = movieContent;
-        }
-    }
+    if (type === 'tv') {
+        apiContent = await fetchAndTransformSingleContent(`${TMDB_BASE_URL}/tv/${id}?api_key=${TMDB_API_KEY}&append_to_response=videos,credits`, 'tv');
+    } else if (type === 'movie') {
+        apiContent = await fetchAndTransformSingleContent(`${TMDB_BASE_URL}/movie/${id}?api_key=${TMDB_API_KEY}&append_to_response=videos,credits`, 'movie');
+    } else {
+        if (manualItem && manualItem.type) {
+            apiContent = await fetchAndTransformSingleContent(`${TMDB_BASE_URL}/${manualItem.type}/${id}?api_key=${TMDB_API_KEY}&append_to_response=videos,credits`, manualItem.type);
+        } else {
+            const [movieContent, tvContent] = await Promise.all([
+                fetchAndTransformSingleContent(`${TMDB_BASE_URL}/movie/${id}?api_key=${TMDB_API_KEY}&append_to_response=videos,credits`, 'movie'),
+                fetchAndTransformSingleContent(`${TMDB_BASE_URL}/tv/${id}?api_key=${TMDB_API_KEY}&append_to_response=videos,credits`, 'tv')
+            ]);
 
-    // If explicit type is tv, OR if (no type was specified AND we didn't find a movie), try TV
-    if (!apiContent && (type === 'tv' || !type)) {
-        let tvContent = await fetchAndTransformSingleContent(`${TMDB_BASE_URL}/tv/${id}?api_key=${TMDB_API_KEY}&append_to_response=videos,credits`, 'tv');
-        if (tvContent) {
-            apiContent = tvContent;
+            if (movieContent && tvContent && expectedKeywords) {
+                const keywords = expectedKeywords.toLowerCase().split(/[\s-]+/).filter(w => w.length > 2);
+                const movieTitleLower = movieContent.title.toLowerCase();
+                const tvTitleLower = tvContent.title.toLowerCase();
+
+                const movieScore = keywords.reduce((acc, k) => acc + (movieTitleLower.includes(k) ? 1 : 0), 0);
+                const tvScore = keywords.reduce((acc, k) => acc + (tvTitleLower.includes(k) ? 1 : 0), 0);
+
+                if (tvScore > movieScore) {
+                    apiContent = tvContent;
+                } else if (movieScore > tvScore) {
+                    apiContent = movieContent;
+                } else {
+                    apiContent = movieContent || tvContent;
+                }
+            } else {
+                apiContent = movieContent || tvContent;
+            }
         }
     }
 

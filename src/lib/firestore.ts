@@ -9,6 +9,24 @@ import type { Content, LiveChannel } from './definitions';
 const CONTENT_COLLECTION = 'manually_added_content';
 const LIVE_TV_COLLECTION = 'live_tv_channels';
 
+function sanitizeForFirestore(obj: any): any {
+    if (obj === null || obj === undefined) return null;
+    if (Array.isArray(obj)) {
+        return obj.map(item => sanitizeForFirestore(item));
+    }
+    if (typeof obj === 'object' && !(obj instanceof Date)) {
+        const clean: Record<string, any> = {};
+        for (const key of Object.keys(obj)) {
+            const val = obj[key];
+            if (val !== undefined) {
+                clean[key] = sanitizeForFirestore(val);
+            }
+        }
+        return clean;
+    }
+    return obj;
+}
+
 /**
  * Add or update content in Firestore
  */
@@ -25,11 +43,13 @@ export async function addContentToFirestore(content: Content): Promise<{ success
             createdAt = data.createdAt || data.updatedAt || createdAt;
         }
 
-        await setDoc(contentRef, {
+        const dataToSave = sanitizeForFirestore({
             ...content,
             createdAt: createdAt,
             updatedAt: new Date().toISOString(),
         });
+
+        await setDoc(contentRef, dataToSave);
         return { success: true };
     } catch (error) {
         console.error('Failed to add content to Firestore:', error);
@@ -699,6 +719,111 @@ export async function updateAdSettings(settings: Partial<AdSettings>): Promise<{
         return { success: true };
     } catch (error) {
         console.error('Error updating ad settings:', error);
+        return { success: false };
+    }
+}
+
+// --- CONTENT REQUESTS SYSTEM ---
+import type { ContentRequest } from './definitions';
+
+const CONTENT_REQUESTS_COLLECTION = 'content_requests';
+
+export async function createOrIncrementContentRequest(requestData: {
+    tmdbId: string;
+    title: string;
+    posterPath: string;
+    backdropPath: string;
+    type: 'movie' | 'tv';
+    releaseDate?: string;
+}): Promise<{ success: boolean; requestCount: number; message?: string }> {
+    try {
+        const docRef = doc(db, CONTENT_REQUESTS_COLLECTION, String(requestData.tmdbId));
+        const docSnap = await getDoc(docRef);
+
+        let count = 1;
+        if (docSnap.exists()) {
+            const currentData = docSnap.data() as ContentRequest;
+            count = (currentData.requestCount || 1) + 1;
+            await updateDoc(docRef, {
+                requestCount: count,
+                updatedAt: new Date().toISOString(),
+                // Reset status to pending if previously rejected or fulfilled when requested again
+                status: currentData.status === 'rejected' ? 'pending' : currentData.status
+            });
+        } else {
+            const newRequest: ContentRequest = {
+                id: String(requestData.tmdbId),
+                tmdbId: String(requestData.tmdbId),
+                title: requestData.title,
+                posterPath: requestData.posterPath || '',
+                backdropPath: requestData.backdropPath || '',
+                type: requestData.type,
+                releaseDate: requestData.releaseDate || '',
+                requestedAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+                requestCount: 1,
+                status: 'pending'
+            };
+            await setDoc(docRef, newRequest);
+        }
+        return { success: true, requestCount: count };
+    } catch (error) {
+        console.error('Error creating content request:', error);
+        return { success: false, requestCount: 0, message: 'Failed to submit request' };
+    }
+}
+
+export async function getContentRequests(): Promise<ContentRequest[]> {
+    try {
+        const q = query(collection(db, CONTENT_REQUESTS_COLLECTION));
+        const snapshot = await getDocs(q);
+        const requests = snapshot.docs.map(doc => doc.data() as ContentRequest);
+        return requests.sort((a, b) => {
+            if (b.requestCount !== a.requestCount) {
+                return b.requestCount - a.requestCount;
+            }
+            return (b.updatedAt || b.requestedAt || '').localeCompare(a.updatedAt || a.requestedAt || '');
+        });
+    } catch (error) {
+        console.error('Error fetching content requests:', error);
+        return [];
+    }
+}
+
+export async function getContentRequestByTmdbId(tmdbId: string): Promise<ContentRequest | null> {
+    try {
+        const docRef = doc(db, CONTENT_REQUESTS_COLLECTION, String(tmdbId));
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+            return docSnap.data() as ContentRequest;
+        }
+        return null;
+    } catch (error) {
+        console.error('Error fetching content request:', error);
+        return null;
+    }
+}
+
+export async function updateContentRequestStatus(id: string, status: 'pending' | 'fulfilled' | 'rejected'): Promise<{ success: boolean }> {
+    try {
+        const docRef = doc(db, CONTENT_REQUESTS_COLLECTION, id);
+        await updateDoc(docRef, {
+            status,
+            updatedAt: new Date().toISOString()
+        });
+        return { success: true };
+    } catch (error) {
+        console.error('Error updating content request status:', error);
+        return { success: false };
+    }
+}
+
+export async function deleteContentRequest(id: string): Promise<{ success: boolean }> {
+    try {
+        await deleteDoc(doc(db, CONTENT_REQUESTS_COLLECTION, id));
+        return { success: true };
+    } catch (error) {
+        console.error('Error deleting content request:', error);
         return { success: false };
     }
 }
