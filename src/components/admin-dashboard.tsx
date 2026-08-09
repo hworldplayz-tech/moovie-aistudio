@@ -15,7 +15,7 @@ import { useToast } from '@/hooks/use-toast';
 import { ContentFormDialog } from './content-form-dialog';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
-import { getLogoText, updateLogoText, getPaginationLimit, updatePaginationLimit, syncContentMetadata, getSecureDownloadSettings, updateSecureDownloadSettings, migrateDownloadDomains, migrateDownloadLinks, previewLinkMigration, getContentRequestsAction, updateContentRequestStatusAction, deleteContentRequestAction, addContent, getDownloadLinkPresets, updateDownloadLinkPresets } from '@/app/admin/actions';
+import { getLogoText, updateLogoText, getPaginationLimit, updatePaginationLimit, syncContentMetadata, getSecureDownloadSettings, updateSecureDownloadSettings, migrateDownloadDomains, migrateDownloadLinks, previewLinkMigration, scanDatabaseDownloadLinks, getContentRequestsAction, updateContentRequestStatusAction, deleteContentRequestAction, addContent, getDownloadLinkPresets, updateDownloadLinkPresets } from '@/app/admin/actions';
 import {
   getContentFromFirestore,
   addContentToFirestore,
@@ -132,6 +132,40 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
     matchCount: number;
     sampleMatches: Array<{ id: string | number; title: string; oldUrl: string; newUrlPreview: string }>;
   } | null>(null);
+
+  // Database Link Inspector State
+  const [dbScanData, setDbScanData] = useState<{
+    domains: Array<{ domain: string; count: number }>;
+    pathSegments: Array<{ segment: string; count: number }>;
+    totalLinksCount: number;
+    totalMoviesWithLinks: number;
+  } | null>(null);
+  const [isScanningDb, setIsScanningDb] = useState(false);
+
+  const handleScanDatabase = async () => {
+    setIsScanningDb(true);
+    try {
+      const res = await scanDatabaseDownloadLinks();
+      if (res.success) {
+        setDbScanData({
+          domains: res.domains,
+          pathSegments: res.pathSegments,
+          totalLinksCount: res.totalLinksCount,
+          totalMoviesWithLinks: res.totalMoviesWithLinks
+        });
+        toast({
+          title: 'Database Scan Completed!',
+          description: `Identified ${res.domains.length} unique domains & ${res.pathSegments.length} path patterns across ${res.totalLinksCount} download links.`
+        });
+      } else {
+        toast({ variant: 'destructive', title: 'Scan Error', description: res.error || 'Failed to scan database' });
+      }
+    } catch {
+      toast({ variant: 'destructive', title: 'Scan Error', description: 'Failed to inspect database download links.' });
+    } finally {
+      setIsScanningDb(false);
+    }
+  };
 
   // Link Title Presets State
   const [linkPresets, setLinkPresets] = useState<string[]>([]);
@@ -1084,9 +1118,123 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
                       </AlertDescription>
                     </Alert>
 
+                    {/* Database Auto-Scan Panel */}
+                    <div className="p-4 rounded-lg border border-orange-300 bg-orange-50/60 dark:bg-orange-950/20 space-y-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-orange-200/80 pb-2">
+                        <div>
+                          <h4 className="text-sm font-bold text-orange-950 dark:text-orange-200 flex items-center gap-1.5">
+                            🔍 Database Download Link Auto-Scanner
+                          </h4>
+                          <p className="text-xs text-orange-800 dark:text-orange-300">
+                            Scans all movies & TV shows in database to detect active domains & URL path patterns.
+                          </p>
+                        </div>
+                        <Button
+                          type="button"
+                          size="sm"
+                          disabled={isScanningDb}
+                          onClick={handleScanDatabase}
+                          className="bg-orange-600 hover:bg-orange-700 text-white font-medium text-xs shadow-sm"
+                        >
+                          {isScanningDb ? (
+                            <>
+                              <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                              Scanning DB...
+                            </>
+                          ) : (
+                            <>
+                              <Search className="mr-1.5 h-3.5 w-3.5" />
+                              Scan Database Now
+                            </>
+                          )}
+                        </Button>
+                      </div>
+
+                      {dbScanData && (
+                        <div className="space-y-3 text-xs pt-1">
+                          <div className="flex flex-wrap gap-4 text-orange-900 dark:text-orange-200 font-medium bg-orange-100/60 dark:bg-orange-900/30 p-2 rounded border border-orange-200">
+                            <span>📊 Total Movies with Links: <strong>{dbScanData.totalMoviesWithLinks}</strong></span>
+                            <span>🔗 Total Download Links: <strong>{dbScanData.totalLinksCount}</strong></span>
+                          </div>
+
+                          {/* Detected Domains */}
+                          {dbScanData.domains.length > 0 && (
+                            <div className="space-y-1.5">
+                              <div className="font-semibold text-orange-900 dark:text-orange-300 flex items-center justify-between">
+                                <span>Detected Domains in Database:</span>
+                                {dbScanData.domains.length > 1 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const allOld = dbScanData.domains.map(d => d.domain).join(', ');
+                                      setOldDomain(allOld);
+                                      setPreviewResult(null);
+                                    }}
+                                    className="text-[11px] text-orange-600 hover:underline font-normal"
+                                  >
+                                    Select All Domains to Find
+                                  </button>
+                                )}
+                              </div>
+                              <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto">
+                                {dbScanData.domains.map((d, i) => (
+                                  <Badge
+                                    key={i}
+                                    variant="outline"
+                                    onClick={() => {
+                                      setOldDomain(d.domain);
+                                      setPreviewResult(null);
+                                    }}
+                                    className="cursor-pointer hover:bg-orange-200 dark:hover:bg-orange-900/60 bg-background border-orange-300 text-orange-950 dark:text-orange-200 font-mono text-[11px] py-0.5 px-2 flex items-center gap-1"
+                                  >
+                                    🌐 {d.domain} <span className="text-[10px] bg-orange-200 dark:bg-orange-800 text-orange-900 dark:text-orange-100 rounded px-1">{d.count}</span>
+                                  </Badge>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Detected Path Segments */}
+                          {dbScanData.pathSegments.length > 0 && (
+                            <div className="space-y-1.5 pt-1">
+                              <div className="font-semibold text-orange-900 dark:text-orange-300 flex items-center justify-between">
+                                <span>Detected Path Words / Segments:</span>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setOldDomain('download, downloads, verifieds');
+                                    setNewDomain('verified');
+                                    setPreviewResult(null);
+                                  }}
+                                  className="text-[11px] text-orange-600 hover:underline font-normal"
+                                >
+                                  ✨ Set Quick Fix: downloads/verifieds ➔ verified
+                                </button>
+                              </div>
+                              <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto">
+                                {dbScanData.pathSegments.map((s, i) => (
+                                  <Badge
+                                    key={i}
+                                    variant="outline"
+                                    onClick={() => {
+                                      setOldDomain(s.segment);
+                                      setPreviewResult(null);
+                                    }}
+                                    className="cursor-pointer hover:bg-orange-200 dark:hover:bg-orange-900/60 bg-background border-orange-300 text-orange-950 dark:text-orange-200 font-mono text-[11px] py-0.5 px-2 flex items-center gap-1"
+                                  >
+                                    📁 /{s.segment}/ <span className="text-[10px] bg-orange-200 dark:bg-orange-800 text-orange-900 dark:text-orange-100 rounded px-1">{s.count}</span>
+                                  </Badge>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
                     {/* Quick Presets Bar */}
                     <div className="p-3 rounded-lg border border-orange-200 bg-orange-100/30 dark:bg-orange-900/10 space-y-2">
-                      <div className="text-xs font-semibold text-orange-900 dark:text-orange-300">Quick Presets:</div>
+                      <div className="text-xs font-semibold text-orange-900 dark:text-orange-300">Quick Presets & Multi-term Examples:</div>
                       <div className="flex flex-wrap gap-2">
                         <Button
                           type="button"
@@ -1094,12 +1242,12 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
                           size="sm"
                           className="text-xs bg-background hover:bg-orange-100 dark:hover:bg-orange-900/40 text-orange-900 dark:text-orange-200"
                           onClick={() => {
-                            setOldDomain('https://www.filmyzilla52.com');
-                            setNewDomain('https://www.filmyzilla53.com');
+                            setOldDomain('download, downloads, verifieds');
+                            setNewDomain('verified');
                             setPreviewResult(null);
                           }}
                         >
-                          🌐 Domain Change (52 ➔ 53)
+                          ✨ Clean Path Fix (download/downloads/verifieds ➔ verified)
                         </Button>
                         <Button
                           type="button"
@@ -1107,12 +1255,12 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
                           size="sm"
                           className="text-xs bg-background hover:bg-orange-100 dark:hover:bg-orange-900/40 text-orange-900 dark:text-orange-200"
                           onClick={() => {
-                            setOldDomain('/download/');
-                            setNewDomain('/verified/');
+                            setOldDomain('filmyzilla29.com, filmyzilla30.com, filmyzilla52.com');
+                            setNewDomain('filmyzilla53.com');
                             setPreviewResult(null);
                           }}
                         >
-                          📁 Cloudflare Path (/download/ ➔ /verified/)
+                          🌐 Multi-Domain Migration (29, 30, 52 ➔ 53)
                         </Button>
                         <Button
                           type="button"
@@ -1132,7 +1280,7 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
 
                     <div className="grid md:grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label htmlFor="oldDomain" className="text-orange-900 dark:text-orange-300 font-medium">Text / Pattern to Find</Label>
+                        <Label htmlFor="oldDomain" className="text-orange-900 dark:text-orange-300 font-medium">Text / Patterns to Find</Label>
                         <Input
                           id="oldDomain"
                           value={oldDomain}
@@ -1140,14 +1288,14 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
                             setOldDomain(e.target.value);
                             setPreviewResult(null);
                           }}
-                          placeholder="e.g. /download/ OR /downloads/ OR https://filmyzilla53.com"
+                          placeholder="e.g. download, downloads, verifieds OR filmyzilla29.com, filmyzilla30.com"
                           disabled={isMigrating || isPreviewing}
                           className="border-orange-200 font-mono text-xs"
                         />
-                        <p className="text-[11px] text-orange-700 dark:text-orange-400">Can be a domain, path segment like <code className="font-mono">/download/</code>, or server suffix.</p>
+                        <p className="text-[11px] text-orange-700 dark:text-orange-400">Supports comma-separated multiple terms (e.g., <code className="font-mono">download, downloads, verifieds</code> or domains).</p>
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="newDomain" className="text-orange-900 dark:text-orange-300 font-medium">Replace With</Label>
+                        <Label htmlFor="newDomain" className="text-orange-900 dark:text-orange-300 font-medium">Replace With Target</Label>
                         <Input
                           id="newDomain"
                           value={newDomain}
@@ -1155,11 +1303,11 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
                             setNewDomain(e.target.value);
                             setPreviewResult(null);
                           }}
-                          placeholder="e.g. /verified/ OR https://filmyzilla54.com OR /server_2"
+                          placeholder="e.g. verified OR filmyzilla53.com OR /server_2"
                           disabled={isMigrating || isPreviewing}
                           className="border-orange-200 font-mono text-xs"
                         />
-                        <p className="text-[11px] text-orange-700 dark:text-orange-400">The replacement string that will take its place.</p>
+                        <p className="text-[11px] text-orange-700 dark:text-orange-400">The exact replacement target word or domain string.</p>
                       </div>
                     </div>
 

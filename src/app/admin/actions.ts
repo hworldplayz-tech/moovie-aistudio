@@ -232,40 +232,145 @@ export async function getUserByUsername(username: string): Promise<SystemUser | 
 }
 
 /**
- * Helper to build regex for link migration tool
- * Supports flexMatch to automatically match both /download/ and /downloads/ variations
+ * Helper to apply migration replacements supporting:
+ * - Multiple find terms separated by comma or newline
+ * - Flex-matching singular & plural variations without leaving stray 's'
+ * - Clean domain and path pattern replacements
  */
-function buildMigrationRegex(findText: string, flexMatch: boolean = true): RegExp {
-  const cleanFind = findText.trim();
-  const isDownloadPattern = /downloads?/i.test(cleanFind);
+function applyMigrationReplacements(
+  url: string,
+  findText: string,
+  replaceText: string,
+  flexMatch: boolean = true
+): string {
+  if (!url || !findText) return url;
 
-  if (flexMatch || isDownloadPattern) {
-    let escaped = cleanFind.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    escaped = escaped.replace(/downloads/gi, 'downloads?');
-    escaped = escaped.replace(/download(?!s\?)/gi, 'downloads?');
-    return new RegExp(escaped, 'gi');
-  } else {
-    const escaped = cleanFind.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    return new RegExp(escaped, 'g');
+  const rawTerms = findText
+    .split(/[\n,]+/)
+    .map(t => t.trim())
+    .filter(t => t.length > 0);
+
+  if (rawTerms.length === 0) return url;
+
+  let currentUrl = url;
+  const targetReplace = replaceText !== undefined ? replaceText.trim() : '';
+
+  for (const term of rawTerms) {
+    if (!term) continue;
+
+    const isDownloadOrVerifiedPattern = /downloads?|verifieds?/i.test(term);
+
+    if (flexMatch || isDownloadOrVerifiedPattern) {
+      if (term.includes('/') || term.startsWith('/') || term.endsWith('/')) {
+        // Match /download/, /downloads/, /verifieds/, /verified/
+        const regex = /\/(downloads?|verifieds?)\b/gi;
+        let cleanRepl = targetReplace;
+        if (!cleanRepl.startsWith('/')) cleanRepl = '/' + cleanRepl;
+        if (cleanRepl.endsWith('/') && cleanRepl !== '/') cleanRepl = cleanRepl.slice(0, -1);
+        currentUrl = currentUrl.replace(regex, cleanRepl);
+      } else {
+        // Word level replacement: download, downloads, verifieds, verified
+        const regex = /\b(downloads?|verifieds?)\b/gi;
+        currentUrl = currentUrl.replace(regex, targetReplace);
+      }
+    }
+
+    // Literal replacement for domain names or specific terms
+    const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const literalRegex = new RegExp(escaped, 'gi');
+    currentUrl = currentUrl.replace(literalRegex, targetReplace);
   }
+
+  return currentUrl;
 }
 
-function testMatch(str: string, regex: RegExp): boolean {
-  if (!str) return false;
-  regex.lastIndex = 0;
-  return regex.test(str);
-}
+/**
+ * Scans all content items in Firestore to extract all unique domains & path segments.
+ * Used by the Admin Link Migration Scanner UI.
+ */
+export async function scanDatabaseDownloadLinks(): Promise<{
+  success: boolean;
+  domains: Array<{ domain: string; count: number }>;
+  pathSegments: Array<{ segment: string; count: number }>;
+  totalLinksCount: number;
+  totalMoviesWithLinks: number;
+  error?: string;
+}> {
+  try {
+    const allContent = await getContentFromFirestore();
+    const domainCounts: Record<string, number> = {};
+    const segmentCounts: Record<string, number> = {};
+    let totalLinks = 0;
+    let moviesCount = 0;
 
-function replaceMatch(str: string, regex: RegExp, replacement: string): string {
-  if (!str) return str;
-  regex.lastIndex = 0;
-  return str.replace(regex, replacement);
+    for (const item of allContent) {
+      const urls: string[] = [];
+      if (item.downloadLink && item.downloadLink.trim()) {
+        urls.push(item.downloadLink.trim());
+      }
+      if (item.downloadLinks && Array.isArray(item.downloadLinks)) {
+        for (const link of item.downloadLinks) {
+          if (link.url && link.url.trim()) {
+            urls.push(link.url.trim());
+          }
+        }
+      }
+
+      if (urls.length > 0) {
+        moviesCount++;
+        totalLinks += urls.length;
+        for (const rawUrl of urls) {
+          try {
+            const urlObj = new URL(rawUrl.startsWith('http') ? rawUrl : `https://${rawUrl}`);
+            const host = urlObj.hostname;
+            if (host) {
+              domainCounts[host] = (domainCounts[host] || 0) + 1;
+            }
+            const parts = urlObj.pathname.split('/').filter(p => p && !/^\d+$/.test(p) && !/^server_\d+$/i.test(p));
+            for (const part of parts) {
+              segmentCounts[part] = (segmentCounts[part] || 0) + 1;
+            }
+          } catch {
+            const matchDomain = rawUrl.match(/https?:\/\/([^\/]+)/i);
+            if (matchDomain && matchDomain[1]) {
+              domainCounts[matchDomain[1]] = (domainCounts[matchDomain[1]] || 0) + 1;
+            }
+          }
+        }
+      }
+    }
+
+    const sortedDomains = Object.entries(domainCounts)
+      .map(([domain, count]) => ({ domain, count }))
+      .sort((a, b) => b.count - a.count);
+
+    const sortedSegments = Object.entries(segmentCounts)
+      .map(([segment, count]) => ({ segment, count }))
+      .sort((a, b) => b.count - a.count);
+
+    return {
+      success: true,
+      domains: sortedDomains,
+      pathSegments: sortedSegments,
+      totalLinksCount: totalLinks,
+      totalMoviesWithLinks: moviesCount
+    };
+  } catch (error) {
+    console.error('Scan database download links failed:', error);
+    return {
+      success: false,
+      domains: [],
+      pathSegments: [],
+      totalLinksCount: 0,
+      totalMoviesWithLinks: 0,
+      error: error instanceof Error ? error.message : 'Scan failed.'
+    };
+  }
 }
 
 /**
  * Link Migration & Pattern Replacement Tool
  * Batch updates download links by replacing any target substring or pattern
- * (Domain, path segment like /download/ -> /verified/, or server suffix like /server_1 -> /server_2)
  */
 export async function previewLinkMigration(
   findText: string,
@@ -281,33 +386,34 @@ export async function previewLinkMigration(
     return { success: false, matchCount: 0, sampleMatches: [], error: 'Find text must be provided.' };
   }
 
-  const cleanFind = findText.trim();
-  const cleanReplace = replaceText !== undefined ? replaceText.trim() : '';
-
   try {
     const allContent = await getContentFromFirestore();
     const matches: Array<{ id: string | number; title: string; oldUrl: string; newUrlPreview: string }> = [];
-
-    const regex = buildMigrationRegex(cleanFind, flexMatch);
 
     for (const item of allContent) {
       let matchedInItem = false;
       let sampleOld = '';
       let sampleNew = '';
 
-      if (item.downloadLink && testMatch(item.downloadLink, regex)) {
-        matchedInItem = true;
-        sampleOld = item.downloadLink;
-        sampleNew = replaceMatch(item.downloadLink, regex, cleanReplace);
+      if (item.downloadLink) {
+        const newUrl = applyMigrationReplacements(item.downloadLink, findText, replaceText, flexMatch);
+        if (newUrl !== item.downloadLink) {
+          matchedInItem = true;
+          sampleOld = item.downloadLink;
+          sampleNew = newUrl;
+        }
       }
 
       if (item.downloadLinks && Array.isArray(item.downloadLinks)) {
         for (const link of item.downloadLinks) {
-          if (link.url && testMatch(link.url, regex)) {
-            matchedInItem = true;
-            if (!sampleOld) {
-              sampleOld = link.url;
-              sampleNew = replaceMatch(link.url, regex, cleanReplace);
+          if (link.url) {
+            const newUrl = applyMigrationReplacements(link.url, findText, replaceText, flexMatch);
+            if (newUrl !== link.url) {
+              matchedInItem = true;
+              if (!sampleOld) {
+                sampleOld = link.url;
+                sampleNew = newUrl;
+              }
             }
           }
         }
@@ -326,7 +432,7 @@ export async function previewLinkMigration(
     return {
       success: true,
       matchCount: matches.length,
-      sampleMatches: matches.slice(0, 10) // Top 10 sample previews
+      sampleMatches: matches.slice(0, 10)
     };
   } catch (error) {
     console.error('Link migration preview failed:', error);
@@ -348,39 +454,41 @@ export async function migrateDownloadLinks(
     return { success: false, updatedCount: 0, error: 'Find text must be provided.' };
   }
 
-  const cleanFind = findText.trim();
-  const cleanReplace = replaceText !== undefined ? replaceText.trim() : '';
-
   try {
     const allContent = await getContentFromFirestore();
     let updatedCount = 0;
-    const regex = buildMigrationRegex(cleanFind, flexMatch);
 
     for (const item of allContent) {
       let hasChanges = false;
       const updatedItem = { ...item };
 
       // Check legacy downloadLink
-      if (updatedItem.downloadLink && testMatch(updatedItem.downloadLink, regex)) {
-        updatedItem.downloadLink = replaceMatch(updatedItem.downloadLink, regex, cleanReplace);
-        hasChanges = true;
+      if (updatedItem.downloadLink) {
+        const newUrl = applyMigrationReplacements(updatedItem.downloadLink, findText, replaceText, flexMatch);
+        if (newUrl !== updatedItem.downloadLink) {
+          updatedItem.downloadLink = newUrl;
+          hasChanges = true;
+        }
       }
 
       // Check downloadLinks array
       if (updatedItem.downloadLinks && Array.isArray(updatedItem.downloadLinks)) {
         updatedItem.downloadLinks = updatedItem.downloadLinks.map(link => {
-          if (link.url && testMatch(link.url, regex)) {
-            hasChanges = true;
-            return {
-              ...link,
-              url: replaceMatch(link.url, regex, cleanReplace)
-            };
+          if (link.url) {
+            const newUrl = applyMigrationReplacements(link.url, findText, replaceText, flexMatch);
+            if (newUrl !== link.url) {
+              hasChanges = true;
+              return {
+                ...link,
+                url: newUrl
+              };
+            }
           }
           return link;
         });
       }
 
-      // Update if changes were made
+      // Save if changes were made
       if (hasChanges) {
         await addContentToFirestore(updatedItem);
         updatedCount++;
@@ -389,12 +497,8 @@ export async function migrateDownloadLinks(
 
     return { success: true, updatedCount };
   } catch (error) {
-    console.error('Link migration failed:', error);
-    return {
-      success: false,
-      updatedCount: 0,
-      error: error instanceof Error ? error.message : 'Migration failed.'
-    };
+    console.error('Migration failed:', error);
+    return { success: false, updatedCount: 0, error: error instanceof Error ? error.message : 'Migration failed.' };
   }
 }
 
