@@ -6,7 +6,7 @@ import { getBrowseContent, getManuallyAddedContent } from '@/lib/tmdb';
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
-import { Film, Tv, History, PlusCircle, Loader2, Settings, Trash2, RefreshCw, Search, Edit, Video, DollarSign, Send, CheckCircle, XCircle } from 'lucide-react';
+import { Film, Tv, History, PlusCircle, Loader2, Settings, Trash2, RefreshCw, Search, Edit, Video, DollarSign, Send, CheckCircle, XCircle, Tag, Plus } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ContentCard } from './content-card';
 import { Separator } from './ui/separator';
@@ -15,7 +15,7 @@ import { useToast } from '@/hooks/use-toast';
 import { ContentFormDialog } from './content-form-dialog';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
-import { getLogoText, updateLogoText, getPaginationLimit, updatePaginationLimit, syncContentMetadata, getSecureDownloadSettings, updateSecureDownloadSettings, migrateDownloadDomains, migrateDownloadLinks, previewLinkMigration, getContentRequestsAction, updateContentRequestStatusAction, deleteContentRequestAction, addContent } from '@/app/admin/actions';
+import { getLogoText, updateLogoText, getPaginationLimit, updatePaginationLimit, syncContentMetadata, getSecureDownloadSettings, updateSecureDownloadSettings, migrateDownloadDomains, migrateDownloadLinks, previewLinkMigration, getContentRequestsAction, updateContentRequestStatusAction, deleteContentRequestAction, addContent, getDownloadLinkPresets, updateDownloadLinkPresets } from '@/app/admin/actions';
 import {
   getContentFromFirestore,
   addContentToFirestore,
@@ -132,6 +132,11 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
     sampleMatches: Array<{ id: string | number; title: string; oldUrl: string; newUrlPreview: string }>;
   } | null>(null);
 
+  // Link Title Presets State
+  const [linkPresets, setLinkPresets] = useState<string[]>([]);
+  const [newPresetInput, setNewPresetInput] = useState('');
+  const [isSavingPresets, setIsSavingPresets] = useState(false);
+
   const filteredContent = recentlyAdded.filter(item =>
     item.title.toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -139,11 +144,12 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
   const fetchDashboardData = async () => {
     setLoadingStats(true);
     try {
-      const [localContent, currentLogoText, currentLimit, secureSettings] = await Promise.all([
+      const [localContent, currentLogoText, currentLimit, secureSettings, presets] = await Promise.all([
         getManuallyAddedContent(),
         getLogoText(),
         getPaginationLimit(),
-        getSecureDownloadSettings()
+        getSecureDownloadSettings(),
+        getDownloadLinkPresets()
       ]);
 
       setLogoText(currentLogoText);
@@ -151,6 +157,7 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
       setSecureDownloadsEnabled(secureSettings.enabled);
       setDownloadDelay(secureSettings.delay);
       setGlobalDownloadsEnabled(secureSettings.globalEnabled);
+      setLinkPresets(presets);
       // Fetch Site Config for other settings
       const siteConfig = await getSiteConfigFromFirestore();
       setShowLiveTvCarousel(siteConfig.showLiveTvCarousel !== undefined ? siteConfig.showLiveTvCarousel : true);
@@ -512,6 +519,65 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
       });
     } finally {
       setIsMigrating(false);
+    }
+  };
+
+  const handleAddPreset = async () => {
+    const clean = newPresetInput.trim();
+    if (!clean) return;
+    if (linkPresets.includes(clean)) {
+      toast({ variant: 'destructive', title: 'Already exists', description: 'This title preset is already in your list.' });
+      return;
+    }
+    const updated = [...linkPresets, clean];
+    setLinkPresets(updated);
+    setNewPresetInput('');
+    setIsSavingPresets(true);
+    try {
+      const res = await updateDownloadLinkPresets(updated);
+      if (res.success) {
+        toast({ title: 'Preset Added!', description: `Saved "${clean}" to preset titles.` });
+      } else {
+        toast({ variant: 'destructive', title: 'Error', description: res.error || 'Failed to save preset.' });
+      }
+    } catch (err) {
+      toast({ variant: 'destructive', title: 'Error', description: 'Failed to save preset.' });
+    } finally {
+      setIsSavingPresets(false);
+    }
+  };
+
+  const handleRemovePreset = async (indexToRemove: number) => {
+    const updated = linkPresets.filter((_, idx) => idx !== indexToRemove);
+    setLinkPresets(updated);
+    setIsSavingPresets(true);
+    try {
+      const res = await updateDownloadLinkPresets(updated);
+      if (res.success) {
+        toast({ title: 'Preset Removed' });
+      } else {
+        toast({ variant: 'destructive', title: 'Error', description: res.error || 'Failed to remove preset.' });
+      }
+    } catch (err) {
+      toast({ variant: 'destructive', title: 'Error', description: 'Failed to remove preset.' });
+    } finally {
+      setIsSavingPresets(false);
+    }
+  };
+
+  const handleResetPresets = async () => {
+    const { DEFAULT_LINK_PRESETS } = await import('@/lib/firestore');
+    setLinkPresets(DEFAULT_LINK_PRESETS);
+    setIsSavingPresets(true);
+    try {
+      const res = await updateDownloadLinkPresets(DEFAULT_LINK_PRESETS);
+      if (res.success) {
+        toast({ title: 'Presets Reset to Defaults!' });
+      }
+    } catch (err) {
+      toast({ variant: 'destructive', title: 'Error', description: 'Failed to reset presets.' });
+    } finally {
+      setIsSavingPresets(false);
     }
   };
 
@@ -911,6 +977,86 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
                       {isSyncing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
                       Sync Now
                     </Button>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Download Link Preset Titles Manager Card */}
+              <Card className="mb-8 border-indigo-200 bg-indigo-50/30 dark:bg-indigo-950/10">
+                <CardHeader>
+                  <CardTitle className="flex items-center text-indigo-950 dark:text-indigo-300">
+                    <Tag className="mr-2 h-6 w-6 text-indigo-600" />
+                    Download Link Title Presets Manager
+                  </CardTitle>
+                  <CardDescription className="text-indigo-900/80 dark:text-indigo-300/80">
+                    Save your most frequently used quality & download link titles (e.g. <code className="bg-indigo-100 dark:bg-indigo-900/60 px-1 py-0.5 rounded font-mono text-xs">720p HD [900MB]</code>, <code className="bg-indigo-100 dark:bg-indigo-900/60 px-1 py-0.5 rounded font-mono text-xs">Hindi Dubbed 1080p</code>). These presets will automatically appear in your Filmyzilla Link Builder & Content Form dropdowns for fast 1-click selection!
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {/* Add Preset Input */}
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Type title preset (e.g. 1080p Full HD [2.5GB] or Season 1 Complete)..."
+                      value={newPresetInput}
+                      onChange={(e) => setNewPresetInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleAddPreset();
+                        }
+                      }}
+                      className="text-xs font-medium border-indigo-200"
+                    />
+                    <Button
+                      type="button"
+                      onClick={handleAddPreset}
+                      disabled={isSavingPresets || !newPresetInput.trim()}
+                      className="bg-indigo-600 hover:bg-indigo-700 text-white shrink-0"
+                    >
+                      {isSavingPresets ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4 mr-1" />}
+                      Add Title Preset
+                    </Button>
+                  </div>
+
+                  {/* Saved Presets Grid */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold text-indigo-950 dark:text-indigo-300">
+                        Saved Presets ({linkPresets.length}):
+                      </span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleResetPresets}
+                        disabled={isSavingPresets}
+                        className="text-[11px] text-muted-foreground hover:text-indigo-600 h-6 px-2"
+                      >
+                        Reset Defaults
+                      </Button>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2 p-3 rounded-lg border border-indigo-200/80 bg-background/80 min-h-[60px] items-center">
+                      {linkPresets.map((preset, idx) => (
+                        <div
+                          key={idx}
+                          className="group flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-indigo-100/80 text-indigo-950 dark:bg-indigo-900/40 dark:text-indigo-200 border border-indigo-200 dark:border-indigo-800 transition-all hover:border-indigo-400"
+                        >
+                          <span>{preset}</span>
+                          <button
+                            type="button"
+                            onClick={() => handleRemovePreset(idx)}
+                            className="text-indigo-400 hover:text-destructive p-0.5 rounded-full transition-colors"
+                            title="Delete preset"
+                          >
+                            <XCircle className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                      {linkPresets.length === 0 && (
+                        <p className="text-xs text-muted-foreground italic">No presets saved yet. Add some above or click Reset Defaults!</p>
+                      )}
+                    </div>
                   </div>
                 </CardContent>
               </Card>

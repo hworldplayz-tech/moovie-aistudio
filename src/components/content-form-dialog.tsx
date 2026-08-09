@@ -26,6 +26,8 @@ import { getContentById } from '@/lib/tmdb';
 import type { Content, DownloadLink } from '@/lib/definitions';
 import { updateContent } from '@/ai/flows/update-content';
 import { ContentCard } from './content-card';
+import { getDownloadLinkPresets } from '@/app/admin/actions';
+import { DEFAULT_LINK_PRESETS } from '@/lib/firestore';
 
 type ContentFormDialogProps = {
   children: React.ReactNode;
@@ -63,8 +65,26 @@ export function ContentFormDialog({ children, contentToEdit, onSave, currentUser
   const [fzServer, setFzServer] = useState('server_1');
   const [showFzGenerator, setShowFzGenerator] = useState(false);
 
+  /* Link Title Presets State */
+  const [linkPresets, setLinkPresets] = useState<string[]>(DEFAULT_LINK_PRESETS);
+  const [fzSelectedTitle, setFzSelectedTitle] = useState<string>('720p HD [900MB]');
+  const [fzCustomTitle, setFzCustomTitle] = useState<string>('');
+
   const { toast } = useToast();
   const isEditing = !!contentToEdit;
+
+  useEffect(() => {
+    if (isOpen) {
+      getDownloadLinkPresets().then(presets => {
+        if (presets && presets.length > 0) {
+          setLinkPresets(presets);
+          if (presets[0] && !presets.includes(fzSelectedTitle)) {
+            setFzSelectedTitle(presets[0]);
+          }
+        }
+      }).catch(err => console.error('Failed to load presets:', err));
+    }
+  }, [isOpen]);
 
   useEffect(() => {
     // When the dialog is opened for editing, populate the form
@@ -317,7 +337,7 @@ export function ContentFormDialog({ children, contentToEdit, onSave, currentUser
                             placeholder="e.g. 38016"
                             value={fzId}
                             onChange={(e) => setFzId(e.target.value)}
-                            className="h-7 text-xs"
+                            className="h-7 text-xs border-orange-200"
                           />
                         </div>
                         <div>
@@ -326,7 +346,7 @@ export function ContentFormDialog({ children, contentToEdit, onSave, currentUser
                             placeholder="https://www.filmyzilla53.com"
                             value={fzDomain}
                             onChange={(e) => setFzDomain(e.target.value)}
-                            className="h-7 text-xs"
+                            className="h-7 text-xs border-orange-200"
                           />
                         </div>
                         <div>
@@ -335,7 +355,7 @@ export function ContentFormDialog({ children, contentToEdit, onSave, currentUser
                             placeholder="verified"
                             value={fzPath}
                             onChange={(e) => setFzPath(e.target.value)}
-                            className="h-7 text-xs"
+                            className="h-7 text-xs border-orange-200"
                           />
                         </div>
                         <div>
@@ -344,14 +364,40 @@ export function ContentFormDialog({ children, contentToEdit, onSave, currentUser
                             placeholder="server_1"
                             value={fzServer}
                             onChange={(e) => setFzServer(e.target.value)}
-                            className="h-7 text-xs"
+                            className="h-7 text-xs border-orange-200"
                           />
+                        </div>
+                        <div className="col-span-2 pt-1">
+                          <Label className="text-[10px] font-semibold text-orange-950 flex items-center justify-between mb-1">
+                            <span>Link Title / Label Preset</span>
+                            <span className="text-[9px] text-muted-foreground font-normal">Select title for generated link</span>
+                          </Label>
+                          <div className="space-y-1.5">
+                            <select
+                              value={fzSelectedTitle}
+                              onChange={(e) => setFzSelectedTitle(e.target.value)}
+                              className="h-7 text-xs rounded-md border border-orange-300 bg-background px-2 text-foreground focus:outline-none focus:ring-1 focus:ring-orange-500 w-full font-medium"
+                            >
+                              {linkPresets.map((preset, idx) => (
+                                <option key={idx} value={preset}>{preset}</option>
+                              ))}
+                              <option value="__CUSTOM__">✨ + Custom Title...</option>
+                            </select>
+                            {fzSelectedTitle === '__CUSTOM__' && (
+                              <Input
+                                placeholder="e.g. 720p HD [Fast Direct Link]"
+                                value={fzCustomTitle}
+                                onChange={(e) => setFzCustomTitle(e.target.value)}
+                                className="h-7 text-xs border-orange-200"
+                              />
+                            )}
+                          </div>
                         </div>
                       </div>
                       <Button
                         type="button"
                         size="sm"
-                        className="w-full h-7 bg-orange-600 hover:bg-orange-700 text-white font-medium text-xs"
+                        className="w-full h-7 bg-orange-600 hover:bg-orange-700 text-white font-medium text-xs mt-1"
                         onClick={() => {
                           if (!fzId.trim()) {
                             toast({ variant: 'destructive', title: 'Error', description: 'Please enter Filmyzilla Download ID.' });
@@ -362,11 +408,15 @@ export function ContentFormDialog({ children, contentToEdit, onSave, currentUser
                           const cleanSrv = fzServer.trim().replace(/^\/+|\/+$/g, '');
                           const cleanMovieId = fzId.trim();
                           const finalGeneratedUrl = `${cleanDom}/${cleanPth}/${cleanMovieId}/${cleanSrv}`;
+                          const finalTitle = fzSelectedTitle === '__CUSTOM__'
+                            ? (fzCustomTitle.trim() || 'Download HD (Fast Server)')
+                            : fzSelectedTitle;
+
                           setDownloadLinks(prev => [
                             ...prev,
-                            { label: 'Download HD (Fast Server)', url: finalGeneratedUrl }
+                            { label: finalTitle, url: finalGeneratedUrl }
                           ]);
-                          toast({ title: 'Link Added!', description: finalGeneratedUrl });
+                          toast({ title: 'Link Added!', description: `${finalTitle} ➔ ${finalGeneratedUrl}` });
                           setFzId('');
                         }}
                       >
@@ -377,30 +427,56 @@ export function ContentFormDialog({ children, contentToEdit, onSave, currentUser
 
                   <div className="space-y-3">
                     {downloadLinks.map((link, index) => (
-                      <div key={index} className="flex gap-2 items-start">
-                        <div className="flex-1 space-y-2">
-                          <Input
-                            placeholder="Label (e.g. 720p, S01E01)"
-                            value={link.label}
-                            onChange={(e) => handleLinkChange(index, 'label', e.target.value)}
-                            className="h-8"
-                          />
-                          <Input
-                            placeholder="URL (https://...)"
-                            value={link.url}
-                            onChange={(e) => handleLinkChange(index, 'url', e.target.value)}
-                            className="h-8"
-                          />
+                      <div key={index} className="p-2.5 rounded-lg border bg-card/60 space-y-2">
+                        <div className="flex items-center justify-between gap-2 border-b pb-1.5">
+                          <span className="text-xs font-semibold text-muted-foreground">Link #{index + 1}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] text-muted-foreground font-medium">Quick Preset:</span>
+                            <select
+                              value=""
+                              onChange={(e) => {
+                                if (e.target.value) {
+                                  handleLinkChange(index, 'label', e.target.value);
+                                }
+                              }}
+                              className="h-6 text-[11px] rounded border border-input bg-background px-1.5 text-foreground cursor-pointer focus:ring-1 focus:ring-ring font-medium"
+                            >
+                              <option value="">-- Choose Title --</option>
+                              {linkPresets.map((preset, pIdx) => (
+                                <option key={pIdx} value={preset}>{preset}</option>
+                              ))}
+                            </select>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6 text-destructive hover:text-destructive/90"
+                              onClick={() => handleRemoveLink(index)}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
                         </div>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="mt-1 text-destructive hover:text-destructive/90"
-                          onClick={() => handleRemoveLink(index)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                          <div>
+                            <Label className="text-[10px] text-muted-foreground">Title / Quality Label</Label>
+                            <Input
+                              placeholder="Label (e.g. 720p HD [900MB])"
+                              value={link.label}
+                              onChange={(e) => handleLinkChange(index, 'label', e.target.value)}
+                              className="h-8 text-xs font-medium"
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-[10px] text-muted-foreground">Download URL</Label>
+                            <Input
+                              placeholder="URL (https://...)"
+                              value={link.url}
+                              onChange={(e) => handleLinkChange(index, 'url', e.target.value)}
+                              className="h-8 text-xs font-mono"
+                            />
+                          </div>
+                        </div>
                       </div>
                     ))}
                     {downloadLinks.length === 0 && (

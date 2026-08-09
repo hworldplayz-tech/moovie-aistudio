@@ -1,7 +1,7 @@
 
 'use server';
 
-import { getContentFromFirestore, addContentToFirestore, getSiteConfigFromFirestore, saveSiteConfigToFirestore, createPartnerRequest, getSystemUser } from '@/lib/firestore';
+import { getContentFromFirestore, addContentToFirestore, getSiteConfigFromFirestore, saveSiteConfigToFirestore, createPartnerRequest, getSystemUser, DEFAULT_LINK_PRESETS } from '@/lib/firestore';
 import { getContentById } from '@/lib/tmdb';
 import type { PartnerRequest, SystemUser } from '@/lib/definitions';
 
@@ -102,6 +102,37 @@ export async function updateSecureDownloadSettings(
   } catch (error) {
     console.error('Failed to update secure download settings:', error);
     return { success: false, error: 'Failed to save to database.' };
+  }
+}
+
+export async function getDownloadLinkPresets(): Promise<string[]> {
+  try {
+    const config = await getSiteConfigFromFirestore();
+    if (config.downloadLinkPresets && Array.isArray(config.downloadLinkPresets) && config.downloadLinkPresets.length > 0) {
+      return config.downloadLinkPresets;
+    }
+    return DEFAULT_LINK_PRESETS;
+  } catch (error) {
+    console.error('Failed to get download link presets:', error);
+    return DEFAULT_LINK_PRESETS;
+  }
+}
+
+export async function updateDownloadLinkPresets(presets: string[]): Promise<{ success: boolean; error?: string }> {
+  if (!Array.isArray(presets)) {
+    return { success: false, error: 'Presets must be an array.' };
+  }
+  try {
+    // Clean presets
+    const cleanPresets = presets
+      .map(p => typeof p === 'string' ? p.trim() : '')
+      .filter(p => p.length > 0);
+
+    await saveSiteConfigToFirestore({ downloadLinkPresets: cleanPresets });
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to update download link presets:', error);
+    return { success: false, error: 'Failed to save presets to database.' };
   }
 }
 

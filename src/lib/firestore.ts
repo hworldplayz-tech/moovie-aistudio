@@ -1,4 +1,3 @@
-'use server';
 /**
  * @fileOverview Firestore helper functions for content management
  */
@@ -108,6 +107,19 @@ export async function deleteContentFromFirestore(ids: string[]): Promise<{ succe
 const CONFIG_COLLECTION = 'settings';
 const CONFIG_DOC = 'site_config';
 
+export const DEFAULT_LINK_PRESETS = [
+    '480p SD [400MB]',
+    '720p HD [900MB]',
+    '1080p Full HD [2GB]',
+    '4K Ultra HD [5GB]',
+    'Hindi Dubbed 480p',
+    'Hindi Dubbed 720p',
+    'Dual Audio (Hindi + Eng) 720p',
+    'Dual Audio (Hindi + Eng) 1080p',
+    'Season 1 Complete 720p',
+    'Download HD (Fast Server)',
+];
+
 export type SiteConfig = {
     logoText?: string;
     paginationLimit?: number;
@@ -121,6 +133,7 @@ export type SiteConfig = {
     featuredLayout?: 'slider' | 'grid' | 'list';
     relatedItemsCount?: number;
     relatedLayout?: 'grid' | 'slider';
+    downloadLinkPresets?: string[];
 }
 
 export async function getSiteConfigFromFirestore(): Promise<SiteConfig> {
