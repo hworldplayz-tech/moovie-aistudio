@@ -125,6 +125,7 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
   // Domain & Link Migration Tool State
   const [oldDomain, setOldDomain] = useState('');
   const [newDomain, setNewDomain] = useState('');
+  const [flexMatch, setFlexMatch] = useState(true);
   const [isMigrating, setIsMigrating] = useState(false);
   const [isPreviewing, setIsPreviewing] = useState(false);
   const [previewResult, setPreviewResult] = useState<{
@@ -470,7 +471,7 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
     }
     setIsPreviewing(true);
     try {
-      const res = await previewLinkMigration(oldDomain.trim(), newDomain);
+      const res = await previewLinkMigration(oldDomain.trim(), newDomain, flexMatch);
       if (res.success) {
         setPreviewResult({
           matchCount: res.matchCount,
@@ -498,7 +499,7 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
 
     setIsMigrating(true);
     try {
-      const result = await migrateDownloadLinks(oldDomain.trim(), newDomain);
+      const result = await migrateDownloadLinks(oldDomain.trim(), newDomain, flexMatch);
       if (result.success) {
         toast({
           title: 'Migration Successful!',
@@ -1139,7 +1140,7 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
                             setOldDomain(e.target.value);
                             setPreviewResult(null);
                           }}
-                          placeholder="e.g. /download/ OR https://filmyzilla53.com OR /server_1"
+                          placeholder="e.g. /download/ OR /downloads/ OR https://filmyzilla53.com"
                           disabled={isMigrating || isPreviewing}
                           className="border-orange-200 font-mono text-xs"
                         />
@@ -1160,6 +1161,28 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
                         />
                         <p className="text-[11px] text-orange-700 dark:text-orange-400">The replacement string that will take its place.</p>
                       </div>
+                    </div>
+
+                    {/* Flex-Match Options Box */}
+                    <div className="p-3 rounded-md border border-orange-200 bg-orange-100/50 dark:bg-orange-950/20">
+                      <label htmlFor="flexMatch" className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          id="flexMatch"
+                          checked={flexMatch}
+                          onChange={(e) => {
+                            setFlexMatch(e.target.checked);
+                            setPreviewResult(null);
+                          }}
+                          className="h-4 w-4 rounded border-orange-300 text-orange-600 focus:ring-orange-500 cursor-pointer"
+                        />
+                        <div className="text-xs text-orange-950 dark:text-orange-200 font-medium">
+                          ✨ <strong>Smart Singular & Plural Flex Match</strong> (Recommended)
+                          <span className="block text-[11px] text-orange-800 dark:text-orange-300 font-normal mt-0.5">
+                            When enabled, searching for <code className="font-mono bg-orange-200/80 dark:bg-orange-900/80 px-1 py-0.5 rounded text-[10px]">/download/</code> automatically matches both <code className="font-mono bg-orange-200/80 dark:bg-orange-900/80 px-1 py-0.5 rounded text-[10px]">/download/</code> and <code className="font-mono bg-orange-200/80 dark:bg-orange-900/80 px-1 py-0.5 rounded text-[10px]">/downloads/</code> links simultaneously!
+                          </span>
+                        </div>
+                      </label>
                     </div>
 
                     {/* Preview Results Box */}

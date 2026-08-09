@@ -232,13 +232,45 @@ export async function getUserByUsername(username: string): Promise<SystemUser | 
 }
 
 /**
+ * Helper to build regex for link migration tool
+ * Supports flexMatch to automatically match both /download/ and /downloads/ variations
+ */
+function buildMigrationRegex(findText: string, flexMatch: boolean = true): RegExp {
+  const cleanFind = findText.trim();
+  const isDownloadPattern = /downloads?/i.test(cleanFind);
+
+  if (flexMatch || isDownloadPattern) {
+    let escaped = cleanFind.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    escaped = escaped.replace(/downloads/gi, 'downloads?');
+    escaped = escaped.replace(/download(?!s\?)/gi, 'downloads?');
+    return new RegExp(escaped, 'gi');
+  } else {
+    const escaped = cleanFind.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return new RegExp(escaped, 'g');
+  }
+}
+
+function testMatch(str: string, regex: RegExp): boolean {
+  if (!str) return false;
+  regex.lastIndex = 0;
+  return regex.test(str);
+}
+
+function replaceMatch(str: string, regex: RegExp, replacement: string): string {
+  if (!str) return str;
+  regex.lastIndex = 0;
+  return str.replace(regex, replacement);
+}
+
+/**
  * Link Migration & Pattern Replacement Tool
  * Batch updates download links by replacing any target substring or pattern
  * (Domain, path segment like /download/ -> /verified/, or server suffix like /server_1 -> /server_2)
  */
 export async function previewLinkMigration(
   findText: string,
-  replaceText: string
+  replaceText: string,
+  flexMatch: boolean = true
 ): Promise<{
   success: boolean;
   matchCount: number;
@@ -256,27 +288,26 @@ export async function previewLinkMigration(
     const allContent = await getContentFromFirestore();
     const matches: Array<{ id: string | number; title: string; oldUrl: string; newUrlPreview: string }> = [];
 
-    const escapedFind = cleanFind.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const regex = new RegExp(escapedFind, 'g');
+    const regex = buildMigrationRegex(cleanFind, flexMatch);
 
     for (const item of allContent) {
       let matchedInItem = false;
       let sampleOld = '';
       let sampleNew = '';
 
-      if (item.downloadLink && item.downloadLink.includes(cleanFind)) {
+      if (item.downloadLink && testMatch(item.downloadLink, regex)) {
         matchedInItem = true;
         sampleOld = item.downloadLink;
-        sampleNew = item.downloadLink.replace(regex, cleanReplace);
+        sampleNew = replaceMatch(item.downloadLink, regex, cleanReplace);
       }
 
       if (item.downloadLinks && Array.isArray(item.downloadLinks)) {
         for (const link of item.downloadLinks) {
-          if (link.url && link.url.includes(cleanFind)) {
+          if (link.url && testMatch(link.url, regex)) {
             matchedInItem = true;
             if (!sampleOld) {
               sampleOld = link.url;
-              sampleNew = link.url.replace(regex, cleanReplace);
+              sampleNew = replaceMatch(link.url, regex, cleanReplace);
             }
           }
         }
@@ -310,7 +341,8 @@ export async function previewLinkMigration(
 
 export async function migrateDownloadLinks(
   findText: string,
-  replaceText: string
+  replaceText: string,
+  flexMatch: boolean = true
 ): Promise<{ success: boolean; updatedCount: number; error?: string }> {
   if (!findText || findText.trim() === '') {
     return { success: false, updatedCount: 0, error: 'Find text must be provided.' };
@@ -319,34 +351,29 @@ export async function migrateDownloadLinks(
   const cleanFind = findText.trim();
   const cleanReplace = replaceText !== undefined ? replaceText.trim() : '';
 
-  if (cleanFind === cleanReplace) {
-    return { success: false, updatedCount: 0, error: 'Find text and Replace text are identical.' };
-  }
-
   try {
     const allContent = await getContentFromFirestore();
     let updatedCount = 0;
-    const escapedFind = cleanFind.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const regex = new RegExp(escapedFind, 'g');
+    const regex = buildMigrationRegex(cleanFind, flexMatch);
 
     for (const item of allContent) {
       let hasChanges = false;
       const updatedItem = { ...item };
 
       // Check legacy downloadLink
-      if (updatedItem.downloadLink && updatedItem.downloadLink.includes(cleanFind)) {
-        updatedItem.downloadLink = updatedItem.downloadLink.replace(regex, cleanReplace);
+      if (updatedItem.downloadLink && testMatch(updatedItem.downloadLink, regex)) {
+        updatedItem.downloadLink = replaceMatch(updatedItem.downloadLink, regex, cleanReplace);
         hasChanges = true;
       }
 
       // Check downloadLinks array
       if (updatedItem.downloadLinks && Array.isArray(updatedItem.downloadLinks)) {
         updatedItem.downloadLinks = updatedItem.downloadLinks.map(link => {
-          if (link.url && link.url.includes(cleanFind)) {
+          if (link.url && testMatch(link.url, regex)) {
             hasChanges = true;
             return {
               ...link,
-              url: link.url.replace(regex, cleanReplace)
+              url: replaceMatch(link.url, regex, cleanReplace)
             };
           }
           return link;
