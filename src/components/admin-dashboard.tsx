@@ -6,7 +6,8 @@ import { getBrowseContent, getManuallyAddedContent } from '@/lib/tmdb';
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
-import { Film, Tv, History, PlusCircle, Loader2, Settings, Trash2, RefreshCw, Search, Edit, Video, DollarSign, Send, CheckCircle, XCircle, Tag, Plus } from 'lucide-react';
+import { Film, Tv, History, PlusCircle, Loader2, Settings, Trash2, RefreshCw, Search, Edit, Video, DollarSign, Send, CheckCircle, XCircle, Tag, Plus, Eye, BarChart3 } from 'lucide-react';
+import AdminViewsAnalytics from './admin-views-analytics';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ContentCard } from './content-card';
 import { Separator } from './ui/separator';
@@ -761,6 +762,9 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
             </TabsTrigger>
             <TabsTrigger value="ads" className="text-xs sm:text-sm py-2 px-3 shrink-0 whitespace-nowrap flex items-center gap-1.5">
               <DollarSign className="h-3.5 w-3.5 sm:h-4 sm:w-4" /> Ads Management
+            </TabsTrigger>
+            <TabsTrigger value="views" className="text-xs sm:text-sm py-2 px-3 shrink-0 whitespace-nowrap flex items-center gap-1.5">
+              <BarChart3 className="h-3.5 w-3.5 sm:h-4 sm:w-4" /> Views & Analytics
             </TabsTrigger>
           </TabsList>
         </div>
@@ -1970,6 +1974,10 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
               <AdsManagement />
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="views">
+          <AdminViewsAnalytics />
         </TabsContent>
       </Tabs>
     </div>

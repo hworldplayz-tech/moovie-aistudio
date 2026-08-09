@@ -10,6 +10,7 @@ import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { RelatedChannelsSection } from '@/components/related-channels-section';
+import { ViewCounter } from '@/components/view-counter';
 
 interface LiveTvContentProps {
     channel: LiveChannel;
@@ -43,11 +44,12 @@ export default function LiveTvContent({ channel }: LiveTvContentProps) {
                 <div className="items-center justify-between flex flex-wrap gap-4">
                     <div>
                         <h1 className="text-2xl md:text-4xl font-bold">{channel.title}</h1>
-                        <div className="flex items-center gap-2 mt-2">
+                        <div className="flex items-center gap-2 mt-2 flex-wrap">
                             <Badge>{channel.country}</Badge>
                             {channel.tags.map(tag => (
                                 <Badge key={tag} variant="outline">{tag}</Badge>
                             ))}
+                            <ViewCounter itemId={channel.id} type="channel" initialViews={channel.viewsCount || 0} />
                         </div>
                     </div>
 

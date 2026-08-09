@@ -2,7 +2,7 @@
  * @fileOverview Firestore helper functions for content management
  */
 import { db } from './firebase';
-import { collection, doc, setDoc, getDocs, deleteDoc, updateDoc, query, orderBy, limit, getDoc, where } from 'firebase/firestore';
+import { collection, doc, setDoc, getDocs, deleteDoc, updateDoc, query, orderBy, limit, getDoc, where, increment } from 'firebase/firestore';
 import type { Content, LiveChannel } from './definitions';
 
 const CONTENT_COLLECTION = 'manually_added_content';
@@ -134,6 +134,7 @@ export type SiteConfig = {
     relatedItemsCount?: number;
     relatedLayout?: 'grid' | 'slider';
     downloadLinkPresets?: string[];
+    showPublicViewsCount?: boolean;
 }
 
 export async function getSiteConfigFromFirestore(): Promise<SiteConfig> {
@@ -419,6 +420,7 @@ export async function getContentBySlug(slug: string): Promise<Content | null> {
             country: docData.country,
             isFeatured: docData.isFeatured,
             slug: docData.slug,
+            viewsCount: docData.viewsCount || 0,
         } as Content;
     } catch (error) {
         console.error('Error getting content by slug:', error);
@@ -840,5 +842,161 @@ export async function deleteContentRequest(id: string): Promise<{ success: boole
         return { success: false };
     }
 }
+
+// --- VIEWS TRACKING SYSTEM ---
+const VIEW_LOGS_COLLECTION = 'view_logs';
+
+export async function recordItemView(
+    itemId: string,
+    type: 'movie' | 'tv' | 'channel',
+    ipAddress: string
+): Promise<{ success: boolean; viewsCount: number; showPublicViews: boolean }> {
+    const config = await getSiteConfigFromFirestore();
+    const showPublicViews = config.showPublicViewsCount !== false;
+
+    if (!itemId) {
+        return { success: false, viewsCount: 0, showPublicViews };
+    }
+
+    const cleanIp = (ipAddress || 'unknown').replace(/[^a-zA-Z0-9]/g, '_').slice(0, 50);
+    const cleanId = String(itemId).trim();
+    const logDocId = `${cleanId}_${cleanIp}`;
+
+    const viewLogRef = doc(db, VIEW_LOGS_COLLECTION, logDocId);
+    const now = Date.now();
+    const DEBOUNCE_MS = 15 * 60 * 1000; // 15 mins unique window per IP per item
+
+    try {
+        const logSnap = await getDoc(viewLogRef);
+        if (logSnap.exists()) {
+            const lastViewed = logSnap.data()?.lastViewedAt || 0;
+            if (now - lastViewed < DEBOUNCE_MS) {
+                // Return current views count without double counting
+                let currentViews = 0;
+                if (type === 'channel') {
+                    const chanSnap = await getDoc(doc(db, LIVE_TV_COLLECTION, cleanId));
+                    currentViews = chanSnap.exists() ? (chanSnap.data()?.viewsCount || 0) : 0;
+                } else {
+                    const contentSnap = await getDoc(doc(db, CONTENT_COLLECTION, cleanId));
+                    currentViews = contentSnap.exists() ? (contentSnap.data()?.viewsCount || 0) : 0;
+                }
+                return { success: true, viewsCount: currentViews, showPublicViews };
+            }
+        }
+
+        // Save view log timestamp
+        await setDoc(viewLogRef, {
+            itemId: cleanId,
+            ipHash: cleanIp,
+            type,
+            lastViewedAt: now
+        }, { merge: true });
+
+        // Increment item viewsCount in Firestore
+        let newViewsCount = 1;
+
+        if (type === 'channel') {
+            const chanRef = doc(db, LIVE_TV_COLLECTION, cleanId);
+            const chanSnap = await getDoc(chanRef);
+            if (chanSnap.exists()) {
+                await updateDoc(chanRef, { viewsCount: increment(1) });
+                newViewsCount = (chanSnap.data()?.viewsCount || 0) + 1;
+            }
+        } else {
+            const contentRef = doc(db, CONTENT_COLLECTION, cleanId);
+            const contentSnap = await getDoc(contentRef);
+            if (contentSnap.exists()) {
+                await updateDoc(contentRef, { viewsCount: increment(1) });
+                newViewsCount = (contentSnap.data()?.viewsCount || 0) + 1;
+            } else {
+                // If item is not in manually_added_content yet (e.g. TMDB item), save a stub record
+                await setDoc(contentRef, {
+                    id: cleanId,
+                    type: type || 'movie',
+                    viewsCount: 1,
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString()
+                }, { merge: true });
+                newViewsCount = 1;
+            }
+        }
+
+        return { success: true, viewsCount: newViewsCount, showPublicViews };
+    } catch (error) {
+        console.error('Error recording item view:', error);
+        return { success: false, viewsCount: 0, showPublicViews };
+    }
+}
+
+export async function getContentViewAnalytics(): Promise<{
+    topMovies: Array<{ id: string; title: string; posterPath?: string; type: string; viewsCount: number }>;
+    topChannels: Array<{ id: string; title: string; posterUrl?: string; country?: string; viewsCount: number }>;
+    totalMovieViews: number;
+    totalChannelViews: number;
+    totalOverallViews: number;
+    showPublicViews: boolean;
+}> {
+    try {
+        const config = await getSiteConfigFromFirestore();
+        const showPublicViews = config.showPublicViewsCount !== false;
+
+        const [contentList, channelList] = await Promise.all([
+            getContentFromFirestore(),
+            getLiveChannels()
+        ]);
+
+        let totalMovieViews = 0;
+        const moviesWithViews = contentList
+            .map(c => {
+                const count = c.viewsCount || 0;
+                totalMovieViews += count;
+                return {
+                    id: String(c.id),
+                    title: c.title || 'Untitled',
+                    posterPath: c.posterPath || '',
+                    type: c.type || 'movie',
+                    viewsCount: count
+                };
+            })
+            .filter(m => m.viewsCount > 0)
+            .sort((a, b) => b.viewsCount - a.viewsCount);
+
+        let totalChannelViews = 0;
+        const channelsWithViews = channelList
+            .map(ch => {
+                const count = ch.viewsCount || 0;
+                totalChannelViews += count;
+                return {
+                    id: String(ch.id),
+                    title: ch.title || 'Untitled Channel',
+                    posterUrl: ch.posterUrl || ch.posterPath || '',
+                    country: ch.country || 'Global',
+                    viewsCount: count
+                };
+            })
+            .filter(c => c.viewsCount > 0)
+            .sort((a, b) => b.viewsCount - a.viewsCount);
+
+        return {
+            topMovies: moviesWithViews.slice(0, 30),
+            topChannels: channelsWithViews.slice(0, 30),
+            totalMovieViews,
+            totalChannelViews,
+            totalOverallViews: totalMovieViews + totalChannelViews,
+            showPublicViews
+        };
+    } catch (error) {
+        console.error('Error fetching view analytics:', error);
+        return {
+            topMovies: [],
+            topChannels: [],
+            totalMovieViews: 0,
+            totalChannelViews: 0,
+            totalOverallViews: 0,
+            showPublicViews: true
+        };
+    }
+}
+
 
 

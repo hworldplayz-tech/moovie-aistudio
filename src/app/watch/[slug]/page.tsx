@@ -26,6 +26,7 @@ import BannerAd from "@/components/ads/banner-ad";
 import NativeAd from "@/components/ads/native-ad";
 import PopupHandler from "@/components/ads/popup-handler";
 import { RequestUploadButton } from "@/components/request-upload-button";
+import { ViewCounter } from "@/components/view-counter";
 
 
 import type { Metadata } from 'next';
@@ -276,6 +277,7 @@ export default async function WatchPage({ params }: WatchPageProps) {
               {content.quality?.map(q => (
                 <Badge key={q} variant="outline" className="border-primary/50">{q}</Badge>
               ))}
+              <ViewCounter itemId={content.id} type={content.type} initialViews={content.viewsCount || 0} />
             </div>
             <div className="mt-4 flex flex-wrap gap-2">
               {allTags.map(tag => (

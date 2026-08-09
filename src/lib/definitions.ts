@@ -35,6 +35,7 @@ export type Content = {
   slug?: string; // SEO-friendly URL slug (e.g., "download-avatar-fire-and-ash")
   inLibrary?: boolean; // Whether the item is in local uploaded library
   isTmdbOnly?: boolean; // True if item comes directly from TMDB search and not uploaded yet
+  viewsCount?: number; // Total unique views/clicks counter
 };
 
 export type ContentRequest = {
@@ -116,6 +117,7 @@ export type LiveChannel = {
   posterPath?: string; // Deprecated or alias, keeping for safety
   createdAt: string;
   userAgent?: string;
+  viewsCount?: number; // Total unique views/clicks counter
 };
 
 export type PlayerContent = {

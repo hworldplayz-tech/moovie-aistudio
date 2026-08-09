@@ -741,3 +741,32 @@ export async function deleteContentRequestAction(id: string) {
   }
 }
 
+// Views Analytics Actions
+export async function getContentViewAnalyticsAction() {
+  try {
+    const { getContentViewAnalytics } = await import('@/lib/firestore');
+    return await getContentViewAnalytics();
+  } catch (error) {
+    console.error('getContentViewAnalyticsAction error:', error);
+    return {
+      topMovies: [],
+      topChannels: [],
+      totalMovieViews: 0,
+      totalChannelViews: 0,
+      totalOverallViews: 0,
+      showPublicViews: true
+    };
+  }
+}
+
+export async function updatePublicViewsSettingAction(enabled: boolean) {
+  try {
+    const { saveSiteConfigToFirestore } = await import('@/lib/firestore');
+    return await saveSiteConfigToFirestore({ showPublicViewsCount: enabled });
+  } catch (error) {
+    console.error('updatePublicViewsSettingAction error:', error);
+    return { success: false };
+  }
+}
+
+
