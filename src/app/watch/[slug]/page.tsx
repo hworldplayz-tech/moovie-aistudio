@@ -324,7 +324,7 @@ export default async function WatchPage({ params }: WatchPageProps) {
                   content.downloadLinks && content.downloadLinks.length > 1 ? (
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button size="lg" className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-md">
+                        <Button size="lg" variant="outline" className="font-semibold">
                           <Download className="mr-2 h-5 w-5" />
                           Download
                           <ChevronDown className="ml-2 h-4 w-4" />
@@ -346,7 +346,7 @@ export default async function WatchPage({ params }: WatchPageProps) {
                       </DropdownMenuContent>
                     </DropdownMenu>
                   ) : (
-                    <Button asChild size="lg" className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-md">
+                    <Button asChild size="lg" variant="outline" className="font-semibold">
                       <Link
                         href={secureEnabled
                           ? `/download?id=${content.id}`
@@ -413,6 +413,33 @@ export default async function WatchPage({ params }: WatchPageProps) {
       <div className="p-4 md:p-6 lg:p-8">
         <NativeAd position="watch_below_content" />
       </div>
+
+      {/* JSON-LD Schema Structured Data for SEO */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": content.type === 'tv' ? "TVSeries" : "Movie",
+            "name": content.title,
+            "description": content.description,
+            "image": content.posterPath,
+            "datePublished": content.releaseDate !== 'N/A' ? content.releaseDate : undefined,
+            "aggregateRating": content.rating ? {
+              "@type": "AggregateRating",
+              "ratingValue": content.rating,
+              "bestRating": "10",
+              "worstRating": "1",
+              "ratingCount": 100
+            } : undefined,
+            "genre": content.genres,
+            "actor": content.cast?.map(c => ({
+              "@type": "Person",
+              "name": c.name
+            }))
+          })
+        }}
+      />
 
       {/* Popup Handler - Shows after 30 seconds */}
       <PopupHandler trigger="time" delay={30} position="watch_popup" />

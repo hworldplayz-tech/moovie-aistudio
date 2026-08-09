@@ -56,6 +56,13 @@ export function ContentFormDialog({ children, contentToEdit, onSave, currentUser
   /* New state for Featured Content */
   const [isFeatured, setIsFeatured] = useState(contentToEdit?.isFeatured || false);
 
+  /* Quick Filmyzilla Link Generator State */
+  const [fzId, setFzId] = useState('');
+  const [fzDomain, setFzDomain] = useState('https://www.filmyzilla53.com');
+  const [fzPath, setFzPath] = useState('verified');
+  const [fzServer, setFzServer] = useState('server_1');
+  const [showFzGenerator, setShowFzGenerator] = useState(false);
+
   const { toast } = useToast();
   const isEditing = !!contentToEdit;
 
@@ -278,10 +285,96 @@ export function ContentFormDialog({ children, contentToEdit, onSave, currentUser
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <Label>Download Links / Episodes</Label>
-                    <Button type="button" variant="outline" size="sm" onClick={handleAddLink}>
-                      <Plus className="h-4 w-4 mr-1" /> Add Link
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => setShowFzGenerator(!showFzGenerator)}
+                        className="text-xs bg-orange-500/10 text-orange-600 hover:bg-orange-500/20 border border-orange-200"
+                      >
+                        ⚡ Filmyzilla ID Helper
+                      </Button>
+                      <Button type="button" variant="outline" size="sm" onClick={handleAddLink}>
+                        <Plus className="h-4 w-4 mr-1" /> Add Link
+                      </Button>
+                    </div>
                   </div>
+
+                  {/* Quick Filmyzilla ID Generator Box */}
+                  {showFzGenerator && (
+                    <div className="mb-4 p-3 rounded-lg border border-orange-200 bg-orange-50/50 space-y-3 text-xs">
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-orange-900 flex items-center gap-1">
+                          ⚡ Filmyzilla / Fast ID Link Builder
+                        </span>
+                        <span className="text-[10px] text-orange-700">Paste movie ID to auto-generate link</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <Label className="text-[10px] text-muted-foreground">Download ID (e.g. 38016)</Label>
+                          <Input
+                            placeholder="e.g. 38016"
+                            value={fzId}
+                            onChange={(e) => setFzId(e.target.value)}
+                            className="h-7 text-xs"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-[10px] text-muted-foreground">Domain</Label>
+                          <Input
+                            placeholder="https://www.filmyzilla53.com"
+                            value={fzDomain}
+                            onChange={(e) => setFzDomain(e.target.value)}
+                            className="h-7 text-xs"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-[10px] text-muted-foreground">Path (verified/download)</Label>
+                          <Input
+                            placeholder="verified"
+                            value={fzPath}
+                            onChange={(e) => setFzPath(e.target.value)}
+                            className="h-7 text-xs"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-[10px] text-muted-foreground">Server (server_1)</Label>
+                          <Input
+                            placeholder="server_1"
+                            value={fzServer}
+                            onChange={(e) => setFzServer(e.target.value)}
+                            className="h-7 text-xs"
+                          />
+                        </div>
+                      </div>
+                      <Button
+                        type="button"
+                        size="sm"
+                        className="w-full h-7 bg-orange-600 hover:bg-orange-700 text-white font-medium text-xs"
+                        onClick={() => {
+                          if (!fzId.trim()) {
+                            toast({ variant: 'destructive', title: 'Error', description: 'Please enter Filmyzilla Download ID.' });
+                            return;
+                          }
+                          const cleanDom = fzDomain.trim().replace(/\/+$/, '');
+                          const cleanPth = fzPath.trim().replace(/^\/+|\/+$/g, '');
+                          const cleanSrv = fzServer.trim().replace(/^\/+|\/+$/g, '');
+                          const cleanMovieId = fzId.trim();
+                          const finalGeneratedUrl = `${cleanDom}/${cleanPth}/${cleanMovieId}/${cleanSrv}`;
+                          setDownloadLinks(prev => [
+                            ...prev,
+                            { label: 'Download HD (Fast Server)', url: finalGeneratedUrl }
+                          ]);
+                          toast({ title: 'Link Added!', description: finalGeneratedUrl });
+                          setFzId('');
+                        }}
+                      >
+                        + Generate & Add Link
+                      </Button>
+                    </div>
+                  )}
+
                   <div className="space-y-3">
                     {downloadLinks.map((link, index) => (
                       <div key={index} className="flex gap-2 items-start">

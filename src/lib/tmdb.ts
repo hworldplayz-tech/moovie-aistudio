@@ -43,8 +43,8 @@ let genreList: Genre[] | null = null;
 async function fetchGenres() {
     if (genreMap) return { genreMap, genreList };
     try {
-        const movieResponse = await fetch(`${TMDB_BASE_URL}/genre/movie/list?api_key=${TMDB_API_KEY}`);
-        const tvResponse = await fetch(`${TMDB_BASE_URL}/genre/tv/list?api_key=${TMDB_API_KEY}`);
+        const movieResponse = await fetch(`${TMDB_BASE_URL}/genre/movie/list?api_key=${TMDB_API_KEY}`, { next: { revalidate: 86400 } });
+        const tvResponse = await fetch(`${TMDB_BASE_URL}/genre/tv/list?api_key=${TMDB_API_KEY}`, { next: { revalidate: 86400 } });
         const movieData = await movieResponse.json();
         const tvData = await tvResponse.json();
 
@@ -95,7 +95,7 @@ function tmdbContentToContent(item: TmdbContent, type: 'movie' | 'tv' | 'person'
 async function fetchAndTransformContent(url: string, type: 'movie' | 'tv' | 'person' = 'movie') {
     const { genreMap: allGenres } = await fetchGenres();
     try {
-        const response = await fetch(url);
+        const response = await fetch(url, { next: { revalidate: 3600 } });
         const data = await response.json();
         const results = (data.results || [data]) as TmdbContent[];
 
@@ -111,7 +111,7 @@ async function fetchAndTransformContent(url: string, type: 'movie' | 'tv' | 'per
 async function fetchAndTransformSingleContent(url: string, type: 'movie' | 'tv') {
     const { genreMap: allGenres } = await fetchGenres();
     try {
-        const response = await fetch(url);
+        const response = await fetch(url, { next: { revalidate: 3600 } });
         if (!response.ok) return null;
         const data = await response.json() as TmdbContent & { genres: Genre[], videos: { results: { type: string, key: string, site: string }[] }, credits: { cast: TmdbCredit[] } };
 

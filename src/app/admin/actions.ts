@@ -201,53 +201,121 @@ export async function getUserByUsername(username: string): Promise<SystemUser | 
 }
 
 /**
- * Domain Migration Tool
- * Batch updates download links from one domain to another
+ * Link Migration & Pattern Replacement Tool
+ * Batch updates download links by replacing any target substring or pattern
+ * (Domain, path segment like /download/ -> /verified/, or server suffix like /server_1 -> /server_2)
  */
-export async function migrateDownloadDomains(
-  oldDomain: string,
-  newDomain: string
-): Promise<{ success: boolean; updatedCount: number; error?: string }> {
-  // Validation
-  if (!oldDomain || !newDomain || oldDomain.trim() === '' || newDomain.trim() === '') {
-    return { success: false, updatedCount: 0, error: 'Both domains must be provided.' };
+export async function previewLinkMigration(
+  findText: string,
+  replaceText: string
+): Promise<{
+  success: boolean;
+  matchCount: number;
+  sampleMatches: Array<{ id: string | number; title: string; oldUrl: string; newUrlPreview: string }>;
+  error?: string;
+}> {
+  if (!findText || findText.trim() === '') {
+    return { success: false, matchCount: 0, sampleMatches: [], error: 'Find text must be provided.' };
   }
 
-  const oldDomainClean = oldDomain.trim();
-  const newDomainClean = newDomain.trim();
+  const cleanFind = findText.trim();
+  const cleanReplace = replaceText !== undefined ? replaceText.trim() : '';
 
-  if (oldDomainClean === newDomainClean) {
-    return { success: false, updatedCount: 0, error: 'Old and new domains are the same.' };
+  try {
+    const allContent = await getContentFromFirestore();
+    const matches: Array<{ id: string | number; title: string; oldUrl: string; newUrlPreview: string }> = [];
+
+    const escapedFind = cleanFind.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(escapedFind, 'g');
+
+    for (const item of allContent) {
+      let matchedInItem = false;
+      let sampleOld = '';
+      let sampleNew = '';
+
+      if (item.downloadLink && item.downloadLink.includes(cleanFind)) {
+        matchedInItem = true;
+        sampleOld = item.downloadLink;
+        sampleNew = item.downloadLink.replace(regex, cleanReplace);
+      }
+
+      if (item.downloadLinks && Array.isArray(item.downloadLinks)) {
+        for (const link of item.downloadLinks) {
+          if (link.url && link.url.includes(cleanFind)) {
+            matchedInItem = true;
+            if (!sampleOld) {
+              sampleOld = link.url;
+              sampleNew = link.url.replace(regex, cleanReplace);
+            }
+          }
+        }
+      }
+
+      if (matchedInItem) {
+        matches.push({
+          id: item.id,
+          title: item.title,
+          oldUrl: sampleOld,
+          newUrlPreview: sampleNew
+        });
+      }
+    }
+
+    return {
+      success: true,
+      matchCount: matches.length,
+      sampleMatches: matches.slice(0, 10) // Top 10 sample previews
+    };
+  } catch (error) {
+    console.error('Link migration preview failed:', error);
+    return {
+      success: false,
+      matchCount: 0,
+      sampleMatches: [],
+      error: error instanceof Error ? error.message : 'Preview failed.'
+    };
+  }
+}
+
+export async function migrateDownloadLinks(
+  findText: string,
+  replaceText: string
+): Promise<{ success: boolean; updatedCount: number; error?: string }> {
+  if (!findText || findText.trim() === '') {
+    return { success: false, updatedCount: 0, error: 'Find text must be provided.' };
+  }
+
+  const cleanFind = findText.trim();
+  const cleanReplace = replaceText !== undefined ? replaceText.trim() : '';
+
+  if (cleanFind === cleanReplace) {
+    return { success: false, updatedCount: 0, error: 'Find text and Replace text are identical.' };
   }
 
   try {
     const allContent = await getContentFromFirestore();
     let updatedCount = 0;
+    const escapedFind = cleanFind.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(escapedFind, 'g');
 
     for (const item of allContent) {
       let hasChanges = false;
       const updatedItem = { ...item };
 
       // Check legacy downloadLink
-      if (updatedItem.downloadLink && updatedItem.downloadLink.includes(oldDomainClean)) {
-        updatedItem.downloadLink = updatedItem.downloadLink.replace(
-          new RegExp(oldDomainClean.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'),
-          newDomainClean
-        );
+      if (updatedItem.downloadLink && updatedItem.downloadLink.includes(cleanFind)) {
+        updatedItem.downloadLink = updatedItem.downloadLink.replace(regex, cleanReplace);
         hasChanges = true;
       }
 
       // Check downloadLinks array
       if (updatedItem.downloadLinks && Array.isArray(updatedItem.downloadLinks)) {
         updatedItem.downloadLinks = updatedItem.downloadLinks.map(link => {
-          if (link.url && link.url.includes(oldDomainClean)) {
+          if (link.url && link.url.includes(cleanFind)) {
             hasChanges = true;
             return {
               ...link,
-              url: link.url.replace(
-                new RegExp(oldDomainClean.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'),
-                newDomainClean
-              )
+              url: link.url.replace(regex, cleanReplace)
             };
           }
           return link;
@@ -263,13 +331,20 @@ export async function migrateDownloadDomains(
 
     return { success: true, updatedCount };
   } catch (error) {
-    console.error('Domain migration failed:', error);
+    console.error('Link migration failed:', error);
     return {
       success: false,
       updatedCount: 0,
       error: error instanceof Error ? error.message : 'Migration failed.'
     };
   }
+}
+
+export async function migrateDownloadDomains(
+  oldDomain: string,
+  newDomain: string
+): Promise<{ success: boolean; updatedCount: number; error?: string }> {
+  return await migrateDownloadLinks(oldDomain, newDomain);
 }
 
 /**

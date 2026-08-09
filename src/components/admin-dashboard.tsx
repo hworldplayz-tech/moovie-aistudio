@@ -15,7 +15,7 @@ import { useToast } from '@/hooks/use-toast';
 import { ContentFormDialog } from './content-form-dialog';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
-import { getLogoText, updateLogoText, getPaginationLimit, updatePaginationLimit, syncContentMetadata, getSecureDownloadSettings, updateSecureDownloadSettings, migrateDownloadDomains, getContentRequestsAction, updateContentRequestStatusAction, deleteContentRequestAction, addContent } from '@/app/admin/actions';
+import { getLogoText, updateLogoText, getPaginationLimit, updatePaginationLimit, syncContentMetadata, getSecureDownloadSettings, updateSecureDownloadSettings, migrateDownloadDomains, migrateDownloadLinks, previewLinkMigration, getContentRequestsAction, updateContentRequestStatusAction, deleteContentRequestAction, addContent } from '@/app/admin/actions';
 import {
   getContentFromFirestore,
   addContentToFirestore,
@@ -122,10 +122,15 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
   const [relatedLayout, setRelatedLayout] = useState<'grid' | 'slider'>('grid');
   const [isSavingSettings, setIsSavingSettings] = useState(false);
 
-  // Domain Migration Tool
+  // Domain & Link Migration Tool State
   const [oldDomain, setOldDomain] = useState('');
   const [newDomain, setNewDomain] = useState('');
   const [isMigrating, setIsMigrating] = useState(false);
+  const [isPreviewing, setIsPreviewing] = useState(false);
+  const [previewResult, setPreviewResult] = useState<{
+    matchCount: number;
+    sampleMatches: Array<{ id: string | number; title: string; oldUrl: string; newUrlPreview: string }>;
+  } | null>(null);
 
   const filteredContent = recentlyAdded.filter(item =>
     item.title.toLowerCase().includes(searchTerm.toLowerCase())
@@ -451,23 +456,51 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
     }
   };
 
+  const handlePreviewMigration = async () => {
+    if (!oldDomain.trim()) {
+      toast({ variant: 'destructive', title: 'Error', description: 'Please enter text or pattern to find.' });
+      return;
+    }
+    setIsPreviewing(true);
+    try {
+      const res = await previewLinkMigration(oldDomain.trim(), newDomain);
+      if (res.success) {
+        setPreviewResult({
+          matchCount: res.matchCount,
+          sampleMatches: res.sampleMatches
+        });
+        toast({
+          title: 'Database Scan Complete',
+          description: `Found ${res.matchCount} matching items with download links.`
+        });
+      } else {
+        toast({ variant: 'destructive', title: 'Scan Failed', description: res.error || 'Failed to scan database.' });
+      }
+    } catch (err) {
+      toast({ variant: 'destructive', title: 'Error', description: 'Failed to scan database.' });
+    } finally {
+      setIsPreviewing(false);
+    }
+  };
+
   const handleMigrateDomains = async () => {
-    if (!oldDomain.trim() || !newDomain.trim()) {
-      toast({ variant: 'destructive', title: 'Error', description: 'Both domains are required.' });
+    if (!oldDomain.trim()) {
+      toast({ variant: 'destructive', title: 'Error', description: 'Find text is required.' });
       return;
     }
 
     setIsMigrating(true);
     try {
-      const result = await migrateDownloadDomains(oldDomain.trim(), newDomain.trim());
+      const result = await migrateDownloadLinks(oldDomain.trim(), newDomain);
       if (result.success) {
         toast({
-          title: 'Migration Complete',
-          description: `Successfully updated ${result.updatedCount} items. Refreshing...`
+          title: 'Migration Successful!',
+          description: `Successfully updated ${result.updatedCount} items in database. Refreshing...`
         });
         setOldDomain('');
         setNewDomain('');
-        setTimeout(() => window.location.reload(), 2000);
+        setPreviewResult(null);
+        setTimeout(() => window.location.reload(), 1500);
       } else {
         throw new Error(result.error || 'Migration failed');
       }
@@ -475,7 +508,7 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
       toast({
         variant: 'destructive',
         title: 'Migration Failed',
-        description: error instanceof Error ? error.message : 'Could not migrate domains.'
+        description: error instanceof Error ? error.message : 'Could not migrate links.'
       });
     } finally {
       setIsMigrating(false);
@@ -882,99 +915,208 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
                 </CardContent>
               </Card>
 
-              {/* Domain Migration Tool */}
-              <Card className="mb-8 border-orange-200 bg-orange-50/30">
+              {/* Link Migration & Pattern Replacement Tool */}
+              <Card className="mb-8 border-orange-200 bg-orange-50/30 dark:bg-orange-950/10">
                 <CardHeader>
-                  <CardTitle className="flex items-center text-orange-900">
-                    <RefreshCw className="mr-2 h-6 w-6" />
-                    Domain Migration Tool
+                  <CardTitle className="flex items-center text-orange-900 dark:text-orange-400">
+                    <RefreshCw className="mr-2 h-6 w-6 text-orange-600" />
+                    Link Migration & URL Replacement Tool
                   </CardTitle>
-                  <CardDescription className="text-orange-700">
-                    Batch update download link domains across all content. Use this when your file host changes domains.
+                  <CardDescription className="text-orange-800 dark:text-orange-300">
+                    Batch replace ANY text, domain, path segment (e.g. <code className="bg-orange-200/60 dark:bg-orange-900/60 px-1 py-0.5 rounded text-xs font-mono">/download/</code> ➔ <code className="bg-orange-200/60 dark:bg-orange-900/60 px-1 py-0.5 rounded text-xs font-mono">/verified/</code>), or server suffix across all content download links in your database.
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-4">
-                    <Alert variant="default" className="border-orange-300 bg-orange-100/50">
-                      <AlertTitle className="text-orange-900">⚠️ Powerful Tool - Use Carefully</AlertTitle>
-                      <AlertDescription className="text-orange-800">
-                        This will scan your entire database and replace domain strings in download links.
-                        Make sure to double-check your inputs before confirming.
+                  <div className="space-y-5">
+                    <Alert variant="default" className="border-orange-300 bg-orange-100/60 dark:bg-orange-900/20">
+                      <AlertTitle className="text-orange-900 dark:text-orange-300 font-semibold flex items-center gap-1">
+                        ⚠️ Powerful Multi-Pattern Replacer
+                      </AlertTitle>
+                      <AlertDescription className="text-orange-800 dark:text-orange-400 text-xs">
+                        This tool updates download URLs across all movies and series in your database. Use the <strong>Scan & Preview</strong> button first to see exactly how many items and URLs will be updated.
                       </AlertDescription>
                     </Alert>
 
-                    <div className="grid md:grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="oldDomain" className="text-orange-900">Old Domain (to find)</Label>
-                        <Input
-                          id="oldDomain"
-                          value={oldDomain}
-                          onChange={(e) => setOldDomain(e.target.value)}
-                          placeholder="e.g., https://filmyzilla28.com"
-                          disabled={isMigrating}
-                          className="border-orange-200"
-                        />
-                        <p className="text-xs text-orange-600">Include https:// or http://</p>
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="newDomain" className="text-orange-900">New Domain (to replace)</Label>
-                        <Input
-                          id="newDomain"
-                          value={newDomain}
-                          onChange={(e) => setNewDomain(e.target.value)}
-                          placeholder="e.g., https://filmyzilla29.com"
-                          disabled={isMigrating}
-                          className="border-orange-200"
-                        />
-                        <p className="text-xs text-orange-600">Must match protocol (http/https)</p>
+                    {/* Quick Presets Bar */}
+                    <div className="p-3 rounded-lg border border-orange-200 bg-orange-100/30 dark:bg-orange-900/10 space-y-2">
+                      <div className="text-xs font-semibold text-orange-900 dark:text-orange-300">Quick Presets:</div>
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="text-xs bg-background hover:bg-orange-100 dark:hover:bg-orange-900/40 text-orange-900 dark:text-orange-200"
+                          onClick={() => {
+                            setOldDomain('https://www.filmyzilla52.com');
+                            setNewDomain('https://www.filmyzilla53.com');
+                            setPreviewResult(null);
+                          }}
+                        >
+                          🌐 Domain Change (52 ➔ 53)
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="text-xs bg-background hover:bg-orange-100 dark:hover:bg-orange-900/40 text-orange-900 dark:text-orange-200"
+                          onClick={() => {
+                            setOldDomain('/download/');
+                            setNewDomain('/verified/');
+                            setPreviewResult(null);
+                          }}
+                        >
+                          📁 Cloudflare Path (/download/ ➔ /verified/)
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="text-xs bg-background hover:bg-orange-100 dark:hover:bg-orange-900/40 text-orange-900 dark:text-orange-200"
+                          onClick={() => {
+                            setOldDomain('/server_1');
+                            setNewDomain('/server_2');
+                            setPreviewResult(null);
+                          }}
+                        >
+                          🖥️ Server Suffix (/server_1 ➔ /server_2)
+                        </Button>
                       </div>
                     </div>
 
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button
-                          variant="default"
-                          disabled={isMigrating || !oldDomain.trim() || !newDomain.trim()}
-                          className="bg-orange-600 hover:bg-orange-700"
-                        >
-                          {isMigrating ? (
-                            <>
-                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                              Migrating Links...
-                            </>
-                          ) : (
-                            <>
-                              <RefreshCw className="mr-2 h-4 w-4" />
-                              Migrate Download Links
-                            </>
-                          )}
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Confirm Domain Migration</AlertDialogTitle>
-                          <AlertDialogDescription className="space-y-2">
-                            <p>You are about to update all download links that contain:</p>
-                            <div className="bg-muted p-3 rounded-md space-y-1 font-mono text-sm">
-                              <p><strong>From:</strong> {oldDomain || '(not set)'}</p>
-                              <p><strong>To:</strong> {newDomain || '(not set)'}</p>
+                    <div className="grid md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="oldDomain" className="text-orange-900 dark:text-orange-300 font-medium">Text / Pattern to Find</Label>
+                        <Input
+                          id="oldDomain"
+                          value={oldDomain}
+                          onChange={(e) => {
+                            setOldDomain(e.target.value);
+                            setPreviewResult(null);
+                          }}
+                          placeholder="e.g. /download/ OR https://filmyzilla53.com OR /server_1"
+                          disabled={isMigrating || isPreviewing}
+                          className="border-orange-200 font-mono text-xs"
+                        />
+                        <p className="text-[11px] text-orange-700 dark:text-orange-400">Can be a domain, path segment like <code className="font-mono">/download/</code>, or server suffix.</p>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="newDomain" className="text-orange-900 dark:text-orange-300 font-medium">Replace With</Label>
+                        <Input
+                          id="newDomain"
+                          value={newDomain}
+                          onChange={(e) => {
+                            setNewDomain(e.target.value);
+                            setPreviewResult(null);
+                          }}
+                          placeholder="e.g. /verified/ OR https://filmyzilla54.com OR /server_2"
+                          disabled={isMigrating || isPreviewing}
+                          className="border-orange-200 font-mono text-xs"
+                        />
+                        <p className="text-[11px] text-orange-700 dark:text-orange-400">The replacement string that will take its place.</p>
+                      </div>
+                    </div>
+
+                    {/* Preview Results Box */}
+                    {previewResult && (
+                      <div className="p-4 rounded-lg border border-orange-300 bg-background space-y-3">
+                        <div className="flex items-center justify-between border-b pb-2">
+                          <span className="font-semibold text-sm text-orange-900 dark:text-orange-300">
+                            Scan Results: <span className="text-orange-600 font-bold">{previewResult.matchCount} items</span> found matching <code className="font-mono bg-muted px-1.5 py-0.5 rounded text-xs">{oldDomain}</code>
+                          </span>
+                        </div>
+                        {previewResult.sampleMatches.length > 0 ? (
+                          <div className="space-y-2 text-xs">
+                            <p className="text-muted-foreground font-medium">Sample Preview Transformations:</p>
+                            <div className="max-h-48 overflow-y-auto space-y-2 pr-1">
+                              {previewResult.sampleMatches.map((m, idx) => (
+                                <div key={idx} className="p-2 rounded bg-muted/50 border font-mono space-y-1">
+                                  <div className="font-sans font-semibold text-foreground">{m.title}</div>
+                                  <div className="text-destructive truncate">BEFORE: {m.oldUrl}</div>
+                                  <div className="text-emerald-600 dark:text-emerald-400 truncate">AFTER: {m.newUrlPreview}</div>
+                                </div>
+                              ))}
                             </div>
-                            <p className="text-destructive font-medium">
-                              This action will modify your database. Make sure the domains are correct!
-                            </p>
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Cancel</AlertDialogCancel>
-                          <AlertDialogAction
-                            onClick={handleMigrateDomains}
-                            className="bg-orange-600 hover:bg-orange-700"
+                          </div>
+                        ) : (
+                          <p className="text-xs text-muted-foreground">No download links currently match "{oldDomain}".</p>
+                        )}
+                      </div>
+                    )}
+
+                    <div className="flex flex-wrap gap-3 items-center">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        disabled={isPreviewing || isMigrating || !oldDomain.trim()}
+                        onClick={handlePreviewMigration}
+                        className="border-orange-300 text-orange-900 dark:text-orange-300 hover:bg-orange-100"
+                      >
+                        {isPreviewing ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Scanning Database...
+                          </>
+                        ) : (
+                          <>
+                            <Search className="mr-2 h-4 w-4 text-orange-600" />
+                            Scan Database & Preview
+                          </>
+                        )}
+                      </Button>
+
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            variant="default"
+                            disabled={isMigrating || !oldDomain.trim()}
+                            className="bg-orange-600 hover:bg-orange-700 text-white"
                           >
-                            Yes, Migrate Now
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
+                            {isMigrating ? (
+                              <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                Migrating Links...
+                              </>
+                            ) : (
+                              <>
+                                <RefreshCw className="mr-2 h-4 w-4" />
+                                Execute Link Migration
+                              </>
+                            )}
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Confirm Link Migration</AlertDialogTitle>
+                            <AlertDialogDescription asChild>
+                              <div className="space-y-2 text-sm text-muted-foreground">
+                                <p>You are about to scan and update download links across your database:</p>
+                                <div className="bg-muted p-3 rounded-md space-y-1 font-mono text-sm break-all">
+                                  <p><strong>Find Pattern:</strong> {oldDomain || '(not set)'}</p>
+                                  <p><strong>Replace With:</strong> {newDomain || '(empty / remove)'}</p>
+                                  {previewResult && (
+                                    <p className="text-orange-600 font-bold pt-1 font-sans">
+                                      Affected Items: {previewResult.matchCount} content item(s)
+                                    </p>
+                                  )}
+                                </div>
+                                <p className="text-destructive font-medium text-xs">
+                                  This action will permanently update matched download URLs in Firestore.
+                                </p>
+                              </div>
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={handleMigrateDomains}
+                              className="bg-orange-600 hover:bg-orange-700"
+                            >
+                              Yes, Execute Migration
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
                   </div>
                 </CardContent>
               </Card>

@@ -24,7 +24,19 @@ export async function generateMetadata(): Promise<Metadata> {
   // Using hardcoded title as requested by user
   return {
     title: SITE_TITLE,
-    description: 'A modern video streaming platform.',
+    description: 'Download and stream free HD Movies, Web Series, Dual Audio Hindi Dubbed Movies in 480p, 720p & 1080p with fast direct links.',
+    keywords: ['movies', 'download movies', 'hindi dubbed', 'dual audio', '720p movies', '1080p web series', 'free streaming', 'watch online'],
+    openGraph: {
+      title: SITE_TITLE,
+      description: 'Download and stream free HD Movies, Web Series, Dual Audio Hindi Dubbed Movies in 480p, 720p & 1080p with fast direct links.',
+      type: 'website',
+      siteName: 'Moovie',
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: SITE_TITLE,
+      description: 'Download and stream free HD Movies, Web Series, Dual Audio Hindi Dubbed Movies in 480p, 720p & 1080p with fast direct links.',
+    },
   };
 }
 
