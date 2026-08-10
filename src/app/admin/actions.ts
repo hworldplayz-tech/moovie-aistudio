@@ -241,7 +241,7 @@ function applyMigrationReplacements(
   url: string,
   findText: string,
   replaceText: string,
-  flexMatch: boolean = true
+  flexMatch: boolean = false
 ): string {
   if (!url || !findText) return url;
 
@@ -258,27 +258,41 @@ function applyMigrationReplacements(
   for (const term of rawTerms) {
     if (!term) continue;
 
-    const isDownloadOrVerifiedPattern = /downloads?|verifieds?/i.test(term);
+    let replaced = false;
 
-    if (flexMatch || isDownloadOrVerifiedPattern) {
-      if (term.includes('/') || term.startsWith('/') || term.endsWith('/')) {
-        // Match /download/, /downloads/, /verifieds/, /verified/
-        const regex = /\/(downloads?|verifieds?)\b/gi;
+    if (flexMatch) {
+      // Flex-match logic ONLY triggers if the term is download/downloads/verified/verifieds
+      const lowerTerm = term.toLowerCase().replace(/^\/+|\/+$/g, '');
+      if (lowerTerm === 'download' || lowerTerm === 'downloads' || lowerTerm === 'verified' || lowerTerm === 'verifieds') {
+        const hasLeadingSlash = term.startsWith('/');
+        const hasTrailingSlash = term.endsWith('/');
+
         let cleanRepl = targetReplace;
-        if (!cleanRepl.startsWith('/')) cleanRepl = '/' + cleanRepl;
-        if (cleanRepl.endsWith('/') && cleanRepl !== '/') cleanRepl = cleanRepl.slice(0, -1);
-        currentUrl = currentUrl.replace(regex, cleanRepl);
-      } else {
-        // Word level replacement: download, downloads, verifieds, verified
-        const regex = /\b(downloads?|verifieds?)\b/gi;
-        currentUrl = currentUrl.replace(regex, targetReplace);
+        if (hasLeadingSlash && !cleanRepl.startsWith('/')) cleanRepl = '/' + cleanRepl;
+        if (hasTrailingSlash && !cleanRepl.endsWith('/')) cleanRepl = cleanRepl + '/';
+
+        if (lowerTerm.startsWith('download')) {
+          const regex = (hasLeadingSlash || hasTrailingSlash)
+            ? /\/(downloads?)\b/gi
+            : /\b(downloads?)\b/gi;
+          currentUrl = currentUrl.replace(regex, cleanRepl);
+          replaced = true;
+        } else if (lowerTerm.startsWith('verified')) {
+          const regex = (hasLeadingSlash || hasTrailingSlash)
+            ? /\/(verifieds?)\b/gi
+            : /\b(verifieds?)\b/gi;
+          currentUrl = currentUrl.replace(regex, cleanRepl);
+          replaced = true;
+        }
       }
     }
 
-    // Literal replacement for domain names or specific terms
-    const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const literalRegex = new RegExp(escaped, 'gi');
-    currentUrl = currentUrl.replace(literalRegex, targetReplace);
+    if (!replaced) {
+      // Literal replacement for domain names (e.g. filmyzilla53.com -> filmyzilla54.com) or path segments (e.g. /server_1 -> /server_2)
+      const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const literalRegex = new RegExp(escaped, 'gi');
+      currentUrl = currentUrl.replace(literalRegex, targetReplace);
+    }
   }
 
   return currentUrl;

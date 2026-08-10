@@ -126,7 +126,7 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
   // Domain & Link Migration Tool State
   const [oldDomain, setOldDomain] = useState('');
   const [newDomain, setNewDomain] = useState('');
-  const [flexMatch, setFlexMatch] = useState(true);
+  const [flexMatch, setFlexMatch] = useState(false);
   const [isMigrating, setIsMigrating] = useState(false);
   const [isPreviewing, setIsPreviewing] = useState(false);
   const [previewResult, setPreviewResult] = useState<{
