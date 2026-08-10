@@ -192,8 +192,8 @@ export async function getContentById(id: string, type?: 'movie' | 'tv', expected
 
             if (movieContent && tvContent && expectedKeywords) {
                 const keywords = expectedKeywords.toLowerCase().split(/[\s-]+/).filter(w => w.length > 2);
-                const movieTitleLower = movieContent.title.toLowerCase();
-                const tvTitleLower = tvContent.title.toLowerCase();
+                const movieTitleLower = (movieContent.title || '').toLowerCase();
+                const tvTitleLower = (tvContent.title || '').toLowerCase();
 
                 const movieScore = keywords.reduce((acc, k) => acc + (movieTitleLower.includes(k) ? 1 : 0), 0);
                 const tvScore = keywords.reduce((acc, k) => acc + (tvTitleLower.includes(k) ? 1 : 0), 0);

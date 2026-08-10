@@ -5,6 +5,10 @@ interface VideoPlayerProps {
 }
 
 export function VideoPlayer({ src }: VideoPlayerProps) {
+    if (!src || typeof src !== 'string') {
+        return <div className="w-full aspect-video flex items-center justify-center bg-muted text-muted-foreground">No video source provided.</div>;
+    }
+
     // Check if the src is an iframe embed code
     if (src.trim().startsWith('<iframe')) {
         // To make the iframe responsive, we'll wrap it.

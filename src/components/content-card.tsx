@@ -50,7 +50,8 @@ export function ContentCard({
   const mouseMoveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   /* Helper to optimize TMDB images manually by requesting smaller size */
-  const getOptimizedPoster = (url: string, size: string = 'w342') => {
+  const getOptimizedPoster = (url?: string, size: string = 'w342') => {
+    if (!url || typeof url !== 'string') return '/placeholder.png';
     if (url.includes('image.tmdb.org')) {
       // Replace typical sizes (original, w500) with the specified size
       return url.replace(/\/w\d+\//, `/${size}/`).replace('/original/', `/${size}/`);
@@ -60,7 +61,10 @@ export function ContentCard({
 
   const optimizedPoster = getOptimizedPoster(content.posterPath);
 
-  const watchUrl = content.slug ? `/watch/${content.slug}` : `/watch/${content.id}-${slugify(content.title)}`;
+  const titleText = content?.title || 'Untitled';
+  const watchUrl = content?.slug
+    ? `/watch/${content.slug}`
+    : `/watch/${content?.id || 'unknown'}-${slugify(titleText)}`;
 
   const adminControls = showAdminControls && (
     <div className="absolute top-2 right-2 z-20 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -81,7 +85,7 @@ export function ContentCard({
           <AlertDialogHeader>
             <AlertDialogTitle>Are you sure?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete "{content.title}". This action cannot be undone.
+              This will permanently delete "{titleText}". This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -99,7 +103,7 @@ export function ContentCard({
         <Link href={watchUrl} className="relative w-20 sm:w-28 md:w-32 aspect-[2/3] flex-shrink-0 rounded-lg overflow-hidden bg-muted group/thumb">
           <Image
             src={optimizedPoster}
-            alt={content.title}
+            alt={content?.title || 'Title'}
             fill
             className="object-cover transition-transform duration-300 group-hover/thumb:scale-105"
             sizes="(max-width: 640px) 80px, 128px"
@@ -120,7 +124,7 @@ export function ContentCard({
           <div>
             <div className="flex items-start justify-between gap-2">
               <Link href={watchUrl} className="hover:underline min-w-0">
-                <h3 className="font-bold text-sm sm:text-base md:text-lg truncate text-foreground">{content.title}</h3>
+                <h3 className="font-bold text-sm sm:text-base md:text-lg truncate text-foreground">{content?.title || 'Untitled'}</h3>
               </Link>
               <div className="flex items-center gap-1 shrink-0 text-xs sm:text-sm bg-yellow-400/10 text-yellow-500 px-1.5 py-0.5 rounded font-medium">
                 <Star className="w-3 h-3 sm:w-3.5 sm:h-3.5 fill-yellow-400 text-yellow-400" />
@@ -172,7 +176,7 @@ export function ContentCard({
             <div className="relative aspect-[2/3] w-full">
               <Image
                 src={optimizedPoster}
-                alt={content.title}
+                alt={content?.title || 'Title'}
                 fill
                 className="object-cover rounded-lg transition-transform duration-300 group-hover:scale-105"
                 sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, (max-width: 1024px) 25vw, 16vw"
@@ -216,7 +220,7 @@ export function ContentCard({
       {adminControls}
 
       <div className="mt-1 sm:mt-1.5 space-y-0.5">
-        <h3 className="font-semibold text-[11px] sm:text-xs md:text-sm truncate leading-tight">{content.title}</h3>
+        <h3 className="font-semibold text-[11px] sm:text-xs md:text-sm truncate leading-tight">{content?.title || 'Untitled'}</h3>
         <div className="flex items-center justify-between text-[10px] sm:text-xs text-muted-foreground">
           <div className="flex items-center gap-1">
             <span>{content.releaseDate ? content.releaseDate.split('-')[0] : ''}</span>

@@ -61,10 +61,10 @@ export function SidebarNav() {
   const router = useRouter();
   const { isMobile, setOpenMobile } = useSidebar();
 
-  const currentType = searchParams.get('type');
-  const currentGenre = searchParams.get('genre');
-  const currentRegion = searchParams.get('region');
-  const isHindiDubbed = searchParams.get('hindi_dubbed') === 'true';
+  const currentType = searchParams?.get('type');
+  const currentGenre = searchParams?.get('genre');
+  const currentRegion = searchParams?.get('region');
+  const isHindiDubbed = searchParams?.get('hindi_dubbed') === 'true';
 
   const currentLanguageValue = isHindiDubbed ? 'hindi_dubbed' : currentRegion || '';
 
@@ -86,7 +86,7 @@ export function SidebarNav() {
   }
 
   const handleLanguageChange = (value: string) => {
-    const newParams = new URLSearchParams(searchParams.toString());
+    const newParams = new URLSearchParams(searchParams?.toString() || '');
 
     if (value === '') {
       newParams.delete('region');

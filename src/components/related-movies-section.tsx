@@ -50,8 +50,8 @@ function computeRelevanceScore(candidate: Content, target: Content): number {
     if (candidate.country && target.country && candidate.country === target.country) score += 3;
 
     // 6. Title similarity / Franchise match
-    const targetTitleWords = target.title.toLowerCase().split(/\s+/).filter(w => w.length > 3);
-    const candTitle = candidate.title.toLowerCase();
+    const targetTitleWords = (target?.title || '').toLowerCase().split(/\s+/).filter(w => w.length > 3);
+    const candTitle = (candidate?.title || '').toLowerCase();
     targetTitleWords.forEach(word => {
         if (candTitle.includes(word)) score += 12;
     });

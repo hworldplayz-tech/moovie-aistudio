@@ -12,8 +12,8 @@ import AdWrapper from '@/components/ads/ad-wrapper';
 
 export default function DownloadPage() {
     const searchParams = useSearchParams();
-    const id = searchParams.get('id');
-    const index = searchParams.get('index');
+    const id = searchParams?.get('id');
+    const index = searchParams?.get('index');
     const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
     const [timeLeft, setTimeLeft] = useState(5);
     const [maxTime, setMaxTime] = useState(5);

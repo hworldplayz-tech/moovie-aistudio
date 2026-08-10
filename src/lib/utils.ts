@@ -5,12 +5,12 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-export function slugify(text: string): string {
-  return text
-    .toString()
+export function slugify(text?: string | null): string {
+  if (!text) return '';
+  return String(text)
     .toLowerCase()
     .trim()
     .replace(/\s+/g, '-') // Replace spaces with -
     .replace(/[^\w\-]+/g, '') // Remove all non-word chars
-    .replace(/\-\-+/g, '-') // Replace multiple - with single -
+    .replace(/\-\-+/g, '-'); // Replace multiple - with single -
 }

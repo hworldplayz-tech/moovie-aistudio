@@ -78,7 +78,7 @@ export function ContentFormDialog({ children, contentToEdit, onSave, currentUser
       getDownloadLinkPresets().then(presets => {
         if (presets && presets.length > 0) {
           setLinkPresets(presets);
-          if (presets[0] && !presets.includes(fzSelectedTitle)) {
+          if (presets[0] && !(presets || []).includes(fzSelectedTitle)) {
             setFzSelectedTitle(presets[0]);
           }
         }
@@ -524,12 +524,12 @@ export function ContentFormDialog({ children, contentToEdit, onSave, currentUser
                         <div key={lang} className="flex items-center space-x-2">
                           <Checkbox
                             id={`lang-${lang}`}
-                            checked={selectedLanguages.includes(lang)}
+                            checked={(selectedLanguages || []).includes(lang)}
                             onCheckedChange={(checked) => {
                               if (checked) {
-                                setSelectedLanguages([...selectedLanguages, lang]);
+                                setSelectedLanguages([...(selectedLanguages || []), lang]);
                               } else {
-                                setSelectedLanguages(selectedLanguages.filter(l => l !== lang));
+                                setSelectedLanguages((selectedLanguages || []).filter(l => l !== lang));
                               }
                             }}
                             disabled={isLoading}
@@ -547,12 +547,12 @@ export function ContentFormDialog({ children, contentToEdit, onSave, currentUser
                         <div key={q} className="flex items-center space-x-2">
                           <Checkbox
                             id={`qual-${q}`}
-                            checked={selectedQuality.includes(q)}
+                            checked={(selectedQuality || []).includes(q)}
                             onCheckedChange={(checked) => {
                               if (checked) {
-                                setSelectedQuality([...selectedQuality, q]);
+                                setSelectedQuality([...(selectedQuality || []), q]);
                               } else {
-                                setSelectedQuality(selectedQuality.filter(item => item !== q));
+                                setSelectedQuality((selectedQuality || []).filter(item => item !== q));
                               }
                             }}
                             disabled={isLoading}

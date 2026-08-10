@@ -16,7 +16,7 @@ export function AppHeader() {
     const formData = new FormData(e.currentTarget);
     const query = formData.get('search') as string;
 
-    const newParams = new URLSearchParams(searchParams.toString());
+    const newParams = new URLSearchParams(searchParams?.toString() || '');
     if (query) {
       newParams.set('q', query);
     } else {
@@ -33,10 +33,10 @@ export function AppHeader() {
           <div className="relative">
             <Search className="absolute left-2.5 sm:left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground" />
             <Input
-              key={searchParams.get('q')}
+              key={searchParams?.get('q') || ''}
               type="search"
               name="search"
-              defaultValue={searchParams.get('q') || ''}
+              defaultValue={searchParams?.get('q') || ''}
               placeholder="Search movies & shows..."
               className="w-full appearance-none bg-background pl-8 sm:pl-9 h-8 sm:h-9 text-xs sm:text-sm shadow-none md:max-w-md lg:max-w-lg"
             />

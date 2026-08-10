@@ -98,15 +98,15 @@ export function HeaderFilters() {
   const yearOptions = years.map(y => ({ value: y, label: y }));
   const languageOptions = languages;
 
-  const currentGenre = searchParams.get('genre') || '';
-  const currentYear = searchParams.get('year') || '';
-  const currentRegion = searchParams.get('region') || '';
-  const isHindiDubbed = searchParams.get('hindi_dubbed') === 'true';
+  const currentGenre = searchParams?.get('genre') || '';
+  const currentYear = searchParams?.get('year') || '';
+  const currentRegion = searchParams?.get('region') || '';
+  const isHindiDubbed = searchParams?.get('hindi_dubbed') === 'true';
 
   const currentLanguageValue = isHindiDubbed ? 'hindi_dubbed' : currentRegion;
 
   const handleFilterChange = useCallback((key: 'genre' | 'year' | 'region' | 'hindi_dubbed', value: string) => {
-    const newParams = new URLSearchParams(searchParams.toString());
+    const newParams = new URLSearchParams(searchParams?.toString() || '');
 
     // Reset all filters when 'All' is selected
     if (value === '') {

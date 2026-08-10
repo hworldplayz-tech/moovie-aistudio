@@ -15,7 +15,7 @@ export default function PlyrPlayer({ source, poster, title, isEmbed }: PlyrPlaye
     const videoRef = useRef<HTMLVideoElement>(null);
 
     useEffect(() => {
-        if (isEmbed) return;
+        if (isEmbed || !source || typeof source !== 'string') return;
 
         const video = videoRef.current;
         if (!video) return;
@@ -59,6 +59,9 @@ export default function PlyrPlayer({ source, poster, title, isEmbed }: PlyrPlaye
     }, [source, isEmbed, title, poster]);
 
     if (isEmbed) {
+        if (!source || typeof source !== 'string') {
+            return <div className="w-full aspect-video flex items-center justify-center bg-muted text-muted-foreground">No embed source provided.</div>;
+        }
         // Cleaning width/height for responsive
         const responsiveIframe = source
             .replace(/width="[^"]*"/, 'width="100%"')

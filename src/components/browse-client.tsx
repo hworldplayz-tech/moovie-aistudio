@@ -37,12 +37,12 @@ export default function BrowseClient({
     featuredLayout = 'slider'
 }: BrowseClientProps) {
     const searchParams = useSearchParams();
-    const q = searchParams.get('q');
-    const type = searchParams.get('type') as 'movie' | 'tv' | null;
-    const genre = searchParams.get('genre');
-    const region = searchParams.get('region');
-    const year = searchParams.get('year');
-    const hindiDubbed = searchParams.get('hindi_dubbed');
+    const q = searchParams?.get('q') || null;
+    const type = (searchParams?.get('type') || null) as 'movie' | 'tv' | null;
+    const genre = searchParams?.get('genre') || null;
+    const region = searchParams?.get('region') || null;
+    const year = searchParams?.get('year') || null;
+    const hindiDubbed = searchParams?.get('hindi_dubbed') || null;
 
     const [content, setContent] = useState<Content[]>(initialContent);
     const [heroContent, setHeroContent] = useState<Content[]>(initialHero);
@@ -94,32 +94,32 @@ export default function BrowseClient({
                 // Filter uploaded local content
                 const filteredLocalContent = localContent.filter(item => {
                     if (type && item.type !== type) return false;
-                    if (genre && !item.genres?.some(g => String(g) === genre || g.toLowerCase() === genre.toLowerCase())) return false;
+                    if (genre && !item.genres?.some(g => String(g) === genre || (typeof g === 'string' && g.toLowerCase() === genre.toLowerCase()))) return false;
                     if (year) {
                         const releaseYear = item.releaseDate ? item.releaseDate.split('-')[0] : '';
                         const airYear = item.lastAirDate ? item.lastAirDate.split('-')[0] : '';
                         if (releaseYear !== year && airYear !== year) return false;
                     }
                     if (region && item.country !== region) return false;
-                    if (q && !item.title.toLowerCase().includes(q.toLowerCase())) return false;
+                    if (q && !(item.title || '').toLowerCase().includes(q.toLowerCase())) return false;
                     if (hindiDubbed && !item.isHindiDubbed) return false;
                     return true;
                 }).map(item => ({ ...item, inLibrary: true }));
 
                 if (q && q.trim().length > 0) {
                     const localIds = new Set(localContent.map(c => String(c.id)));
-                    const localTitles = new Set(localContent.map(c => c.title.toLowerCase().trim()));
+                    const localTitles = new Set(localContent.map(c => (c.title || '').toLowerCase().trim()));
 
                     // Filter TMDB results to exclude items already uploaded
                     const uniqueTmdbItems = tmdbResults
                         .filter(item => {
                             if (type && item.type !== type) return false;
-                            if (genre && !item.genres?.some(g => String(g) === genre || g.toLowerCase() === genre.toLowerCase())) return false;
+                            if (genre && !item.genres?.some(g => String(g) === genre || (typeof g === 'string' && g.toLowerCase() === genre.toLowerCase()))) return false;
                             if (year) {
                                 const releaseYear = item.releaseDate ? item.releaseDate.split('-')[0] : '';
                                 if (releaseYear !== year) return false;
                             }
-                            return !localIds.has(String(item.id)) && !localTitles.has(item.title.toLowerCase().trim());
+                            return !localIds.has(String(item.id)) && !localTitles.has((item.title || '').toLowerCase().trim());
                         })
                         .map(item => ({
                             ...item,

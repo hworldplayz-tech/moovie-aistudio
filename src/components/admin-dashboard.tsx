@@ -6,7 +6,7 @@ import { getBrowseContent, getManuallyAddedContent } from '@/lib/tmdb';
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
-import { Film, Tv, History, PlusCircle, Loader2, Settings, Trash2, RefreshCw, Search, Edit, Video, DollarSign, Send, CheckCircle, XCircle, Tag, Plus, Eye, BarChart3 } from 'lucide-react';
+import { Film, Tv, History, PlusCircle, Loader2, Settings, Trash2, RefreshCw, Search, Edit, Video, DollarSign, Send, CheckCircle, XCircle, Tag, Plus, Eye, BarChart3, Database } from 'lucide-react';
 import AdminViewsAnalytics from './admin-views-analytics';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ContentCard } from './content-card';
@@ -174,7 +174,7 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
   const [isSavingPresets, setIsSavingPresets] = useState(false);
 
   const filteredContent = recentlyAdded.filter(item =>
-    item.title.toLowerCase().includes(searchTerm.toLowerCase())
+    (item.title || '').toLowerCase().includes((searchTerm || '').toLowerCase())
   );
 
   const fetchDashboardData = async () => {
@@ -561,7 +561,7 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
   const handleAddPreset = async () => {
     const clean = newPresetInput.trim();
     if (!clean) return;
-    if (linkPresets.includes(clean)) {
+    if ((linkPresets || []).includes(clean)) {
       toast({ variant: 'destructive', title: 'Already exists', description: 'This title preset is already in your list.' });
       return;
     }
@@ -1523,7 +1523,7 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
                         <div className="absolute top-2 left-2 z-30">
                           <Checkbox
                             id={`select-${item.id}`}
-                            checked={selectedIds.includes(String(item.id))}
+                            checked={(selectedIds || []).includes(String(item.id))}
                             onCheckedChange={(checked) => handleSelectionChange(String(item.id), !!checked)}
                             className="bg-background/70 border-white/50 data-[state=checked]:bg-primary data-[state=checked]:border-primary-foreground"
                           />
