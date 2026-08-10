@@ -124,8 +124,15 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
   const [isSavingSettings, setIsSavingSettings] = useState(false);
 
   // Domain & Link Migration Tool State
+  const [migrationMode, setMigrationMode] = useState<'domain' | 'path' | 'server' | 'custom'>('domain');
   const [oldDomain, setOldDomain] = useState('');
   const [newDomain, setNewDomain] = useState('');
+  const [oldPath, setOldPath] = useState('');
+  const [newPath, setNewPath] = useState('');
+  const [oldServer, setOldServer] = useState('');
+  const [newServer, setNewServer] = useState('');
+  const [oldCustom, setOldCustom] = useState('');
+  const [newCustom, setNewCustom] = useState('');
   const [flexMatch, setFlexMatch] = useState(false);
   const [isMigrating, setIsMigrating] = useState(false);
   const [isPreviewing, setIsPreviewing] = useState(false);
@@ -499,14 +506,27 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
     }
   };
 
+  const getActiveMigrationParams = () => {
+    if (migrationMode === 'domain') {
+      return { findText: oldDomain.trim(), replaceText: newDomain.trim(), mode: 'domain' as const, isFlex: false };
+    } else if (migrationMode === 'path') {
+      return { findText: oldPath.trim(), replaceText: newPath.trim(), mode: 'path' as const, isFlex: flexMatch };
+    } else if (migrationMode === 'server') {
+      return { findText: oldServer.trim(), replaceText: newServer.trim(), mode: 'server' as const, isFlex: false };
+    } else {
+      return { findText: oldCustom.trim(), replaceText: newCustom.trim(), mode: 'custom' as const, isFlex: false };
+    }
+  };
+
   const handlePreviewMigration = async () => {
-    if (!oldDomain.trim()) {
+    const { findText, replaceText, mode, isFlex } = getActiveMigrationParams();
+    if (!findText) {
       toast({ variant: 'destructive', title: 'Error', description: 'Please enter text or pattern to find.' });
       return;
     }
     setIsPreviewing(true);
     try {
-      const res = await previewLinkMigration(oldDomain.trim(), newDomain, flexMatch);
+      const res = await previewLinkMigration(findText, replaceText, mode, isFlex);
       if (res.success) {
         setPreviewResult({
           matchCount: res.matchCount,
@@ -527,23 +547,28 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
   };
 
   const handleMigrateDomains = async () => {
-    if (!oldDomain.trim()) {
+    const { findText, replaceText, mode, isFlex } = getActiveMigrationParams();
+    if (!findText) {
       toast({ variant: 'destructive', title: 'Error', description: 'Find text is required.' });
       return;
     }
 
     setIsMigrating(true);
     try {
-      const result = await migrateDownloadLinks(oldDomain.trim(), newDomain, flexMatch);
+      const result = await migrateDownloadLinks(findText, replaceText, mode, isFlex);
       if (result.success) {
         toast({
           title: 'Migration Successful!',
-          description: `Successfully updated ${result.updatedCount} items in database. Refreshing...`
+          description: `Successfully updated ${result.updatedCount} items in database.`
         });
-        setOldDomain('');
-        setNewDomain('');
+        if (mode === 'domain') { setOldDomain(''); setNewDomain(''); }
+        else if (mode === 'path') { setOldPath(''); setNewPath(''); }
+        else if (mode === 'server') { setOldServer(''); setNewServer(''); }
+        else { setOldCustom(''); setNewCustom(''); }
+
         setPreviewResult(null);
-        setTimeout(() => window.location.reload(), 1500);
+        await handleScanDatabase();
+        await fetchAdminContent();
       } else {
         throw new Error(result.error || 'Migration failed');
       }
@@ -1127,7 +1152,7 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
                       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-orange-200/80 pb-2">
                         <div>
                           <h4 className="text-sm font-bold text-orange-950 dark:text-orange-200 flex items-center gap-1.5">
-                            🔍 Database Download Link Auto-Scanner
+                            🔍 Database Download Link Inspector & Scanner
                           </h4>
                           <p className="text-xs text-orange-800 dark:text-orange-300">
                             Scans all movies & TV shows in database to detect active domains & URL path patterns.
@@ -1165,18 +1190,18 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
                           {dbScanData.domains.length > 0 && (
                             <div className="space-y-1.5">
                               <div className="font-semibold text-orange-900 dark:text-orange-300 flex items-center justify-between">
-                                <span>Detected Domains in Database:</span>
+                                <span>Detected Domains in Database (click to set in Domain Migration):</span>
                                 {dbScanData.domains.length > 1 && (
                                   <button
                                     type="button"
                                     onClick={() => {
-                                      const allOld = dbScanData.domains.map(d => d.domain).join(', ');
-                                      setOldDomain(allOld);
+                                      setMigrationMode('domain');
+                                      setOldDomain(dbScanData.domains.map(d => d.domain).join(', '));
                                       setPreviewResult(null);
                                     }}
                                     className="text-[11px] text-orange-600 hover:underline font-normal"
                                   >
-                                    Select All Domains to Find
+                                    Select All Domains
                                   </button>
                                 )}
                               </div>
@@ -1186,6 +1211,7 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
                                     key={i}
                                     variant="outline"
                                     onClick={() => {
+                                      setMigrationMode('domain');
                                       setOldDomain(d.domain);
                                       setPreviewResult(null);
                                     }}
@@ -1202,17 +1228,18 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
                           {dbScanData.pathSegments.length > 0 && (
                             <div className="space-y-1.5 pt-1">
                               <div className="font-semibold text-orange-900 dark:text-orange-300 flex items-center justify-between">
-                                <span>Detected Path Words / Segments:</span>
+                                <span>Detected Path Words / Segments (click to set in Path Migration):</span>
                                 <button
                                   type="button"
                                   onClick={() => {
-                                    setOldDomain('download, downloads, verifieds');
-                                    setNewDomain('verified');
+                                    setMigrationMode('path');
+                                    setOldPath('download, downloads, verifieds');
+                                    setNewPath('verified');
                                     setPreviewResult(null);
                                   }}
                                   className="text-[11px] text-orange-600 hover:underline font-normal"
                                 >
-                                  ✨ Set Quick Fix: downloads/verifieds ➔ verified
+                                  ✨ Set Quick Path Fix: downloads/verifieds ➔ verified
                                 </button>
                               </div>
                               <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto">
@@ -1221,7 +1248,8 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
                                     key={i}
                                     variant="outline"
                                     onClick={() => {
-                                      setOldDomain(s.segment);
+                                      setMigrationMode('path');
+                                      setOldPath(s.segment);
                                       setPreviewResult(null);
                                     }}
                                     className="cursor-pointer hover:bg-orange-200 dark:hover:bg-orange-900/60 bg-background border-orange-300 text-orange-950 dark:text-orange-200 font-mono text-[11px] py-0.5 px-2 flex items-center gap-1"
@@ -1236,105 +1264,264 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
                       )}
                     </div>
 
-                    {/* Quick Presets Bar */}
-                    <div className="p-3 rounded-lg border border-orange-200 bg-orange-100/30 dark:bg-orange-900/10 space-y-2">
-                      <div className="text-xs font-semibold text-orange-900 dark:text-orange-300">Quick Presets & Multi-term Examples:</div>
-                      <div className="flex flex-wrap gap-2">
+                    {/* Migration Mode Sub-Tabs */}
+                    <div className="space-y-4">
+                      <div className="flex flex-wrap gap-2 border-b border-orange-200 pb-2">
                         <Button
                           type="button"
-                          variant="outline"
+                          variant={migrationMode === 'domain' ? 'default' : 'outline'}
                           size="sm"
-                          className="text-xs bg-background hover:bg-orange-100 dark:hover:bg-orange-900/40 text-orange-900 dark:text-orange-200"
                           onClick={() => {
-                            setOldDomain('download, downloads, verifieds');
-                            setNewDomain('verified');
+                            setMigrationMode('domain');
                             setPreviewResult(null);
                           }}
+                          className={migrationMode === 'domain' ? 'bg-orange-600 hover:bg-orange-700 text-white font-medium text-xs' : 'border-orange-300 text-orange-950 dark:text-orange-200 text-xs'}
                         >
-                          ✨ Clean Path Fix (download/downloads/verifieds ➔ verified)
+                          🌐 Domain Migration Only
                         </Button>
                         <Button
                           type="button"
-                          variant="outline"
+                          variant={migrationMode === 'path' ? 'default' : 'outline'}
                           size="sm"
-                          className="text-xs bg-background hover:bg-orange-100 dark:hover:bg-orange-900/40 text-orange-900 dark:text-orange-200"
                           onClick={() => {
-                            setOldDomain('filmyzilla29.com, filmyzilla30.com, filmyzilla52.com');
-                            setNewDomain('filmyzilla53.com');
+                            setMigrationMode('path');
                             setPreviewResult(null);
                           }}
+                          className={migrationMode === 'path' ? 'bg-orange-600 hover:bg-orange-700 text-white font-medium text-xs' : 'border-orange-300 text-orange-950 dark:text-orange-200 text-xs'}
                         >
-                          🌐 Multi-Domain Migration (29, 30, 52 ➔ 53)
+                          📁 Middle Path Segment Migration
                         </Button>
                         <Button
                           type="button"
-                          variant="outline"
+                          variant={migrationMode === 'server' ? 'default' : 'outline'}
                           size="sm"
-                          className="text-xs bg-background hover:bg-orange-100 dark:hover:bg-orange-900/40 text-orange-900 dark:text-orange-200"
                           onClick={() => {
-                            setOldDomain('/server_1');
-                            setNewDomain('/server_2');
+                            setMigrationMode('server');
                             setPreviewResult(null);
                           }}
+                          className={migrationMode === 'server' ? 'bg-orange-600 hover:bg-orange-700 text-white font-medium text-xs' : 'border-orange-300 text-orange-950 dark:text-orange-200 text-xs'}
                         >
-                          🖥️ Server Suffix (/server_1 ➔ /server_2)
+                          🖥️ Server Suffix Migration
+                        </Button>
+                        <Button
+                          type="button"
+                          variant={migrationMode === 'custom' ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => {
+                            setMigrationMode('custom');
+                            setPreviewResult(null);
+                          }}
+                          className={migrationMode === 'custom' ? 'bg-orange-600 hover:bg-orange-700 text-white font-medium text-xs' : 'border-orange-300 text-orange-950 dark:text-orange-200 text-xs'}
+                        >
+                          🔧 Custom Exact Pattern
                         </Button>
                       </div>
-                    </div>
 
-                    <div className="grid md:grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="oldDomain" className="text-orange-900 dark:text-orange-300 font-medium">Text / Patterns to Find</Label>
-                        <Input
-                          id="oldDomain"
-                          value={oldDomain}
-                          onChange={(e) => {
-                            setOldDomain(e.target.value);
-                            setPreviewResult(null);
-                          }}
-                          placeholder="e.g. download, downloads, verifieds OR filmyzilla29.com, filmyzilla30.com"
-                          disabled={isMigrating || isPreviewing}
-                          className="border-orange-200 font-mono text-xs"
-                        />
-                        <p className="text-[11px] text-orange-700 dark:text-orange-400">Supports comma-separated multiple terms (e.g., <code className="font-mono">download, downloads, verifieds</code> or domains).</p>
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="newDomain" className="text-orange-900 dark:text-orange-300 font-medium">Replace With Target</Label>
-                        <Input
-                          id="newDomain"
-                          value={newDomain}
-                          onChange={(e) => {
-                            setNewDomain(e.target.value);
-                            setPreviewResult(null);
-                          }}
-                          placeholder="e.g. verified OR filmyzilla53.com OR /server_2"
-                          disabled={isMigrating || isPreviewing}
-                          className="border-orange-200 font-mono text-xs"
-                        />
-                        <p className="text-[11px] text-orange-700 dark:text-orange-400">The exact replacement target word or domain string.</p>
-                      </div>
-                    </div>
+                      {/* Domain Mode */}
+                      {migrationMode === 'domain' && (
+                        <div className="p-4 rounded-lg border border-orange-300 bg-orange-50/30 dark:bg-orange-950/10 space-y-3">
+                          <div className="space-y-1">
+                            <h4 className="text-sm font-bold text-orange-950 dark:text-orange-200 flex items-center gap-1.5">
+                              🌐 Domain Migration Mode
+                            </h4>
+                            <p className="text-xs text-orange-800 dark:text-orange-300">
+                              🔒 <strong>Isolated Execution:</strong> ONLY changes domain hostnames (e.g., <code className="font-mono bg-orange-200/80 dark:bg-orange-900/80 px-1 py-0.5 rounded text-[11px]">filmyzilla53.com</code> ➔ <code className="font-mono bg-orange-200/80 dark:bg-orange-900/80 px-1 py-0.5 rounded text-[11px]">filmyzilla54.com</code>). It will <strong>NEVER</strong> touch middle path words like <code className="font-mono">/verified/</code> or server numbers like <code className="font-mono">/server_1</code>.
+                            </p>
+                          </div>
 
-                    {/* Flex-Match Options Box */}
-                    <div className="p-3 rounded-md border border-orange-200 bg-orange-100/50 dark:bg-orange-950/20">
-                      <label htmlFor="flexMatch" className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          id="flexMatch"
-                          checked={flexMatch}
-                          onChange={(e) => {
-                            setFlexMatch(e.target.checked);
-                            setPreviewResult(null);
-                          }}
-                          className="h-4 w-4 rounded border-orange-300 text-orange-600 focus:ring-orange-500 cursor-pointer"
-                        />
-                        <div className="text-xs text-orange-950 dark:text-orange-200 font-medium">
-                          ✨ <strong>Smart Singular & Plural Flex Match</strong> (Recommended)
-                          <span className="block text-[11px] text-orange-800 dark:text-orange-300 font-normal mt-0.5">
-                            When enabled, searching for <code className="font-mono bg-orange-200/80 dark:bg-orange-900/80 px-1 py-0.5 rounded text-[10px]">/download/</code> automatically matches both <code className="font-mono bg-orange-200/80 dark:bg-orange-900/80 px-1 py-0.5 rounded text-[10px]">/download/</code> and <code className="font-mono bg-orange-200/80 dark:bg-orange-900/80 px-1 py-0.5 rounded text-[10px]">/downloads/</code> links simultaneously!
-                          </span>
+                          <div className="grid md:grid-cols-2 gap-4 pt-1">
+                            <div className="space-y-1.5">
+                              <Label htmlFor="oldDomainInput" className="text-orange-900 dark:text-orange-300 font-medium text-xs">Find Old Domain(s)</Label>
+                              <Input
+                                id="oldDomainInput"
+                                value={oldDomain}
+                                onChange={(e) => {
+                                  setOldDomain(e.target.value);
+                                  setPreviewResult(null);
+                                }}
+                                placeholder="e.g. filmyzilla53.com or filmyzilla29.com, filmyzilla30.com"
+                                disabled={isMigrating || isPreviewing}
+                                className="border-orange-200 font-mono text-xs"
+                              />
+                              <p className="text-[11px] text-orange-700 dark:text-orange-400">Can be single domain or comma-separated list of domains.</p>
+                            </div>
+                            <div className="space-y-1.5">
+                              <Label htmlFor="newDomainInput" className="text-orange-900 dark:text-orange-300 font-medium text-xs">Replace With Target Domain</Label>
+                              <Input
+                                id="newDomainInput"
+                                value={newDomain}
+                                onChange={(e) => {
+                                  setNewDomain(e.target.value);
+                                  setPreviewResult(null);
+                                }}
+                                placeholder="e.g. filmyzilla54.com"
+                                disabled={isMigrating || isPreviewing}
+                                className="border-orange-200 font-mono text-xs"
+                              />
+                              <p className="text-[11px] text-orange-700 dark:text-orange-400">Target domain hostname.</p>
+                            </div>
+                          </div>
                         </div>
-                      </label>
+                      )}
+
+                      {/* Path Mode */}
+                      {migrationMode === 'path' && (
+                        <div className="p-4 rounded-lg border border-orange-300 bg-orange-50/30 dark:bg-orange-950/10 space-y-3">
+                          <div className="space-y-1">
+                            <h4 className="text-sm font-bold text-orange-950 dark:text-orange-200 flex items-center gap-1.5">
+                              📁 Middle Path Segment Migration Mode
+                            </h4>
+                            <p className="text-xs text-orange-800 dark:text-orange-300">
+                              🔒 <strong>Isolated Execution:</strong> ONLY changes URL path words (e.g., <code className="font-mono bg-orange-200/80 dark:bg-orange-900/80 px-1 py-0.5 rounded text-[11px]">/download/</code> ➔ <code className="font-mono bg-orange-200/80 dark:bg-orange-900/80 px-1 py-0.5 rounded text-[11px]">/verified/</code>). It will <strong>NEVER</strong> touch domain names like <code className="font-mono">filmyzilla54.com</code> or server numbers.
+                            </p>
+                          </div>
+
+                          <div className="grid md:grid-cols-2 gap-4 pt-1">
+                            <div className="space-y-1.5">
+                              <Label htmlFor="oldPathInput" className="text-orange-900 dark:text-orange-300 font-medium text-xs">Find Path Segment / Word(s)</Label>
+                              <Input
+                                id="oldPathInput"
+                                value={oldPath}
+                                onChange={(e) => {
+                                  setOldPath(e.target.value);
+                                  setPreviewResult(null);
+                                }}
+                                placeholder="e.g. download, downloads, verifieds"
+                                disabled={isMigrating || isPreviewing}
+                                className="border-orange-200 font-mono text-xs"
+                              />
+                              <p className="text-[11px] text-orange-700 dark:text-orange-400">Target word(s) between slashes in the link path.</p>
+                            </div>
+                            <div className="space-y-1.5">
+                              <Label htmlFor="newPathInput" className="text-orange-900 dark:text-orange-300 font-medium text-xs">Replace With Target Path Segment</Label>
+                              <Input
+                                id="newPathInput"
+                                value={newPath}
+                                onChange={(e) => {
+                                  setNewPath(e.target.value);
+                                  setPreviewResult(null);
+                                }}
+                                placeholder="e.g. verified"
+                                disabled={isMigrating || isPreviewing}
+                                className="border-orange-200 font-mono text-xs"
+                              />
+                              <p className="text-[11px] text-orange-700 dark:text-orange-400">Target replacement word.</p>
+                            </div>
+                          </div>
+
+                          {/* Flex Match Checkbox ONLY for Path mode */}
+                          <div className="p-3 rounded-md border border-orange-200 bg-orange-100/50 dark:bg-orange-950/20">
+                            <label htmlFor="flexMatchPath" className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                id="flexMatchPath"
+                                checked={flexMatch}
+                                onChange={(e) => {
+                                  setFlexMatch(e.target.checked);
+                                  setPreviewResult(null);
+                                }}
+                                className="h-4 w-4 rounded border-orange-300 text-orange-600 focus:ring-orange-500 cursor-pointer"
+                              />
+                              <div className="text-xs text-orange-950 dark:text-orange-200 font-medium">
+                                ✨ <strong>Smart Singular & Plural Flex Match</strong> (Optional for Path mode)
+                                <span className="block text-[11px] text-orange-800 dark:text-orange-300 font-normal mt-0.5">
+                                  When enabled, searching for <code className="font-mono bg-orange-200/80 dark:bg-orange-900/80 px-1 py-0.5 rounded text-[10px]">download</code> automatically matches both <code className="font-mono bg-orange-200/80 dark:bg-orange-900/80 px-1 py-0.5 rounded text-[10px]">download</code> and <code className="font-mono bg-orange-200/80 dark:bg-orange-900/80 px-1 py-0.5 rounded text-[10px]">downloads</code>.
+                                </span>
+                              </div>
+                            </label>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Server Suffix Mode */}
+                      {migrationMode === 'server' && (
+                        <div className="p-4 rounded-lg border border-orange-300 bg-orange-50/30 dark:bg-orange-950/10 space-y-3">
+                          <div className="space-y-1">
+                            <h4 className="text-sm font-bold text-orange-950 dark:text-orange-200 flex items-center gap-1.5">
+                              🖥️ Server Suffix Migration Mode
+                            </h4>
+                            <p className="text-xs text-orange-800 dark:text-orange-300">
+                              🔒 <strong>Isolated Execution:</strong> ONLY changes server numbers/suffixes at the end of download links (e.g., <code className="font-mono bg-orange-200/80 dark:bg-orange-900/80 px-1 py-0.5 rounded text-[11px]">/server_1</code> ➔ <code className="font-mono bg-orange-200/80 dark:bg-orange-900/80 px-1 py-0.5 rounded text-[11px]">/server_2</code>).
+                            </p>
+                          </div>
+
+                          <div className="grid md:grid-cols-2 gap-4 pt-1">
+                            <div className="space-y-1.5">
+                              <Label htmlFor="oldServerInput" className="text-orange-900 dark:text-orange-300 font-medium text-xs">Find Server Suffix</Label>
+                              <Input
+                                id="oldServerInput"
+                                value={oldServer}
+                                onChange={(e) => {
+                                  setOldServer(e.target.value);
+                                  setPreviewResult(null);
+                                }}
+                                placeholder="e.g. /server_1 or server_1"
+                                disabled={isMigrating || isPreviewing}
+                                className="border-orange-200 font-mono text-xs"
+                              />
+                            </div>
+                            <div className="space-y-1.5">
+                              <Label htmlFor="newServerInput" className="text-orange-900 dark:text-orange-300 font-medium text-xs">Replace With Target Server Suffix</Label>
+                              <Input
+                                id="newServerInput"
+                                value={newServer}
+                                onChange={(e) => {
+                                  setNewServer(e.target.value);
+                                  setPreviewResult(null);
+                                }}
+                                placeholder="e.g. /server_2"
+                                disabled={isMigrating || isPreviewing}
+                                className="border-orange-200 font-mono text-xs"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Custom Mode */}
+                      {migrationMode === 'custom' && (
+                        <div className="p-4 rounded-lg border border-orange-300 bg-orange-50/30 dark:bg-orange-950/10 space-y-3">
+                          <div className="space-y-1">
+                            <h4 className="text-sm font-bold text-orange-950 dark:text-orange-200 flex items-center gap-1.5">
+                              🔧 Custom Exact Pattern Replacer
+                            </h4>
+                            <p className="text-xs text-orange-800 dark:text-orange-300">
+                              Direct string replacement for any arbitrary custom text.
+                            </p>
+                          </div>
+
+                          <div className="grid md:grid-cols-2 gap-4 pt-1">
+                            <div className="space-y-1.5">
+                              <Label htmlFor="oldCustomInput" className="text-orange-900 dark:text-orange-300 font-medium text-xs">Find Custom Text</Label>
+                              <Input
+                                id="oldCustomInput"
+                                value={oldCustom}
+                                onChange={(e) => {
+                                  setOldCustom(e.target.value);
+                                  setPreviewResult(null);
+                                }}
+                                placeholder="e.g. custom text or link snippet"
+                                disabled={isMigrating || isPreviewing}
+                                className="border-orange-200 font-mono text-xs"
+                              />
+                            </div>
+                            <div className="space-y-1.5">
+                              <Label htmlFor="newCustomInput" className="text-orange-900 dark:text-orange-300 font-medium text-xs">Replace With Target Text</Label>
+                              <Input
+                                id="newCustomInput"
+                                value={newCustom}
+                                onChange={(e) => {
+                                  setNewCustom(e.target.value);
+                                  setPreviewResult(null);
+                                }}
+                                placeholder="e.g. new replacement text"
+                                disabled={isMigrating || isPreviewing}
+                                className="border-orange-200 font-mono text-xs"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     {/* Preview Results Box */}
@@ -1342,7 +1529,7 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
                       <div className="p-4 rounded-lg border border-orange-300 bg-background space-y-3">
                         <div className="flex items-center justify-between border-b pb-2">
                           <span className="font-semibold text-sm text-orange-900 dark:text-orange-300">
-                            Scan Results: <span className="text-orange-600 font-bold">{previewResult.matchCount} items</span> found matching <code className="font-mono bg-muted px-1.5 py-0.5 rounded text-xs">{oldDomain}</code>
+                            Scan Results ({migrationMode.toUpperCase()} Mode): <span className="text-orange-600 font-bold">{previewResult.matchCount} items</span> found matching <code className="font-mono bg-muted px-1.5 py-0.5 rounded text-xs">{getActiveMigrationParams().findText}</code>
                           </span>
                         </div>
                         {previewResult.sampleMatches.length > 0 ? (
@@ -1359,16 +1546,16 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
                             </div>
                           </div>
                         ) : (
-                          <p className="text-xs text-muted-foreground">No download links currently match "{oldDomain}".</p>
+                          <p className="text-xs text-muted-foreground">No download links currently match "{getActiveMigrationParams().findText}".</p>
                         )}
                       </div>
                     )}
 
-                    <div className="flex flex-wrap gap-3 items-center">
+                    <div className="flex flex-wrap gap-3 items-center pt-2">
                       <Button
                         type="button"
                         variant="outline"
-                        disabled={isPreviewing || isMigrating || !oldDomain.trim()}
+                        disabled={isPreviewing || isMigrating || !getActiveMigrationParams().findText}
                         onClick={handlePreviewMigration}
                         className="border-orange-300 text-orange-900 dark:text-orange-300 hover:bg-orange-100"
                       >
@@ -1380,7 +1567,7 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
                         ) : (
                           <>
                             <Search className="mr-2 h-4 w-4 text-orange-600" />
-                            Scan Database & Preview
+                            Scan Database & Preview ({migrationMode.toUpperCase()})
                           </>
                         )}
                       </Button>
@@ -1389,7 +1576,7 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
                         <AlertDialogTrigger asChild>
                           <Button
                             variant="default"
-                            disabled={isMigrating || !oldDomain.trim()}
+                            disabled={isMigrating || !getActiveMigrationParams().findText}
                             className="bg-orange-600 hover:bg-orange-700 text-white"
                           >
                             {isMigrating ? (
@@ -1400,20 +1587,21 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
                             ) : (
                               <>
                                 <RefreshCw className="mr-2 h-4 w-4" />
-                                Execute Link Migration
+                                Execute {migrationMode.toUpperCase()} Migration
                               </>
                             )}
                           </Button>
                         </AlertDialogTrigger>
                         <AlertDialogContent>
                           <AlertDialogHeader>
-                            <AlertDialogTitle>Confirm Link Migration</AlertDialogTitle>
+                            <AlertDialogTitle>Confirm {migrationMode.toUpperCase()} Migration</AlertDialogTitle>
                             <AlertDialogDescription asChild>
                               <div className="space-y-2 text-sm text-muted-foreground">
-                                <p>You are about to scan and update download links across your database:</p>
+                                <p>You are about to scan and update download links in <strong>{migrationMode.toUpperCase()} mode</strong> across your database:</p>
                                 <div className="bg-muted p-3 rounded-md space-y-1 font-mono text-sm break-all">
-                                  <p><strong>Find Pattern:</strong> {oldDomain || '(not set)'}</p>
-                                  <p><strong>Replace With:</strong> {newDomain || '(empty / remove)'}</p>
+                                  <p><strong>Mode:</strong> {migrationMode.toUpperCase()} Only</p>
+                                  <p><strong>Find Pattern:</strong> {getActiveMigrationParams().findText || '(not set)'}</p>
+                                  <p><strong>Replace With:</strong> {getActiveMigrationParams().replaceText || '(empty / remove)'}</p>
                                   {previewResult && (
                                     <p className="text-orange-600 font-bold pt-1 font-sans">
                                       Affected Items: {previewResult.matchCount} content item(s)
@@ -1421,7 +1609,7 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
                                   )}
                                 </div>
                                 <p className="text-destructive font-medium text-xs">
-                                  This action will permanently update matched download URLs in Firestore.
+                                  This action will permanently update matched download URLs in Firestore using strict {migrationMode} isolation.
                                 </p>
                               </div>
                             </AlertDialogDescription>

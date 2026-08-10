@@ -237,65 +237,141 @@ export async function getUserByUsername(username: string): Promise<SystemUser | 
  * - Flex-matching singular & plural variations without leaving stray 's'
  * - Clean domain and path pattern replacements
  */
-function applyMigrationReplacements(
-  url: string,
-  findText: string,
-  replaceText: string,
-  flexMatch: boolean = false
-): string {
-  if (!url || !findText) return url;
+export type MigrationMode = 'domain' | 'path' | 'server' | 'custom';
 
-  const rawTerms = findText
-    .split(/[\n,]+/)
-    .map(t => t.trim())
-    .filter(t => t.length > 0);
+function replaceDomainOnly(url: string, findDomainsRaw: string, replaceDomainRaw: string): string {
+  if (!url || !findDomainsRaw || !replaceDomainRaw) return url;
+  
+  let targetDomain = replaceDomainRaw.trim().replace(/^https?:\/\//i, '').replace(/\/+$/, '');
+  if (!targetDomain) return url;
 
-  if (rawTerms.length === 0) return url;
+  const findDomains = findDomainsRaw.split(/[\n,]+/)
+    .map(d => d.trim().replace(/^https?:\/\//i, '').replace(/\/+$/, ''))
+    .filter(Boolean);
 
   let currentUrl = url;
-  const targetReplace = replaceText !== undefined ? replaceText.trim() : '';
+  for (const domain of findDomains) {
+    if (!domain) continue;
+    const escaped = domain.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    
+    // Match http(s)://(subdomain.)domain.com
+    const protoRegex = new RegExp(`^(https?:\\/\\/(?:[^\\/]+\\.)?)${escaped}(\\b|\\/|:|$)`, 'i');
+    if (protoRegex.test(currentUrl)) {
+      currentUrl = currentUrl.replace(protoRegex, `$1${targetDomain}$2`);
+      continue;
+    }
+
+    // Match www.domain.com or domain.com at start of URL before path
+    const startRegex = new RegExp(`^((?:www\\.)?)${escaped}(\\b|\\/|:|$)`, 'i');
+    if (startRegex.test(currentUrl)) {
+      currentUrl = currentUrl.replace(startRegex, `$1${targetDomain}$2`);
+      continue;
+    }
+
+    // Fallback: replace domain in protocol host position
+    const fallbackRegex = new RegExp(`(https?:\\/\\/)${escaped}(\\b|\\/|:|$)`, 'gi');
+    currentUrl = currentUrl.replace(fallbackRegex, `$1${targetDomain}$2`);
+  }
+
+  return currentUrl;
+}
+
+function replacePathSegmentsOnly(
+  url: string,
+  findSegmentsRaw: string,
+  replaceSegmentRaw: string,
+  flexMatch: boolean = false
+): string {
+  if (!url || !findSegmentsRaw || !replaceSegmentRaw) return url;
+
+  let target = replaceSegmentRaw.trim().replace(/^\/+|\/+$/g, '');
+  const rawTerms = findSegmentsRaw.split(/[\n,]+/).map(s => s.trim().replace(/^\/+|\/+$/g, '')).filter(Boolean);
+
+  // Separate protocol + host from path so host is NEVER touched
+  let protocolAndHost = '';
+  let pathAndQuery = url;
+
+  const matchOrigin = url.match(/^(https?:\/\/[^\/]+)(\/.*)?$/i);
+  if (matchOrigin) {
+    protocolAndHost = matchOrigin[1];
+    pathAndQuery = matchOrigin[2] || '';
+  } else {
+    const matchNoProto = url.match(/^([^\/]+)(\/.*)?$/i);
+    if (matchNoProto && matchNoProto[1].includes('.')) {
+      protocolAndHost = matchNoProto[1];
+      pathAndQuery = matchNoProto[2] || '';
+    }
+  }
+
+  let updatedPath = pathAndQuery;
 
   for (const term of rawTerms) {
     if (!term) continue;
 
-    let replaced = false;
-
     if (flexMatch) {
-      // Flex-match logic ONLY triggers if the term is download/downloads/verified/verifieds
-      const lowerTerm = term.toLowerCase().replace(/^\/+|\/+$/g, '');
-      if (lowerTerm === 'download' || lowerTerm === 'downloads' || lowerTerm === 'verified' || lowerTerm === 'verifieds') {
-        const hasLeadingSlash = term.startsWith('/');
-        const hasTrailingSlash = term.endsWith('/');
-
-        let cleanRepl = targetReplace;
-        if (hasLeadingSlash && !cleanRepl.startsWith('/')) cleanRepl = '/' + cleanRepl;
-        if (hasTrailingSlash && !cleanRepl.endsWith('/')) cleanRepl = cleanRepl + '/';
-
-        if (lowerTerm.startsWith('download')) {
-          const regex = (hasLeadingSlash || hasTrailingSlash)
-            ? /\/(downloads?)\b/gi
-            : /\b(downloads?)\b/gi;
-          currentUrl = currentUrl.replace(regex, cleanRepl);
-          replaced = true;
-        } else if (lowerTerm.startsWith('verified')) {
-          const regex = (hasLeadingSlash || hasTrailingSlash)
-            ? /\/(verifieds?)\b/gi
-            : /\b(verifieds?)\b/gi;
-          currentUrl = currentUrl.replace(regex, cleanRepl);
-          replaced = true;
-        }
+      const lower = term.toLowerCase();
+      if (lower.startsWith('download')) {
+        updatedPath = updatedPath.replace(/\/(downloads?)\b/gi, `/${target}`);
+        continue;
+      } else if (lower.startsWith('verified')) {
+        updatedPath = updatedPath.replace(/\/(verifieds?)\b/gi, `/${target}`);
+        continue;
       }
     }
 
-    if (!replaced) {
-      // Literal replacement for domain names (e.g. filmyzilla53.com -> filmyzilla54.com) or path segments (e.g. /server_1 -> /server_2)
-      const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const literalRegex = new RegExp(escaped, 'gi');
-      currentUrl = currentUrl.replace(literalRegex, targetReplace);
-    }
+    const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const segmentRegex = new RegExp(`\\/${escaped}\\b`, 'gi');
+    updatedPath = updatedPath.replace(segmentRegex, `/${target}`);
+  }
+
+  return protocolAndHost + updatedPath;
+}
+
+function replaceServerSuffixOnly(url: string, findSuffixRaw: string, replaceSuffixRaw: string): string {
+  if (!url || !findSuffixRaw || !replaceSuffixRaw) return url;
+
+  let target = replaceSuffixRaw.trim();
+  if (!target.startsWith('/')) target = '/' + target;
+
+  const rawTerms = findSuffixRaw.split(/[\n,]+/).map(s => s.trim()).filter(Boolean);
+
+  let currentUrl = url;
+  for (let term of rawTerms) {
+    if (!term) continue;
+    if (!term.startsWith('/')) term = '/' + term;
+
+    const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(`${escaped}(\\b|\\/|\\?|$)`, 'gi');
+    currentUrl = currentUrl.replace(regex, `${target}$1`);
   }
 
   return currentUrl;
+}
+
+function applyMigrationReplacements(
+  url: string,
+  findText: string,
+  replaceText: string,
+  mode: MigrationMode = 'domain',
+  flexMatch: boolean = false
+): string {
+  if (!url || !findText) return url;
+
+  if (mode === 'domain') {
+    return replaceDomainOnly(url, findText, replaceText);
+  } else if (mode === 'path') {
+    return replacePathSegmentsOnly(url, findText, replaceText, flexMatch);
+  } else if (mode === 'server') {
+    return replaceServerSuffixOnly(url, findText, replaceText);
+  } else {
+    const rawTerms = findText.split(/[\n,]+/).map(t => t.trim()).filter(Boolean);
+    let currentUrl = url;
+    for (const term of rawTerms) {
+      const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      currentUrl = currentUrl.replace(new RegExp(escaped, 'gi'), replaceText.trim());
+    }
+    return currentUrl;
+  }
 }
 
 /**
@@ -389,7 +465,8 @@ export async function scanDatabaseDownloadLinks(): Promise<{
 export async function previewLinkMigration(
   findText: string,
   replaceText: string,
-  flexMatch: boolean = true
+  mode: MigrationMode = 'domain',
+  flexMatch: boolean = false
 ): Promise<{
   success: boolean;
   matchCount: number;
@@ -410,7 +487,7 @@ export async function previewLinkMigration(
       let sampleNew = '';
 
       if (item.downloadLink) {
-        const newUrl = applyMigrationReplacements(item.downloadLink, findText, replaceText, flexMatch);
+        const newUrl = applyMigrationReplacements(item.downloadLink, findText, replaceText, mode, flexMatch);
         if (newUrl !== item.downloadLink) {
           matchedInItem = true;
           sampleOld = item.downloadLink;
@@ -421,7 +498,7 @@ export async function previewLinkMigration(
       if (item.downloadLinks && Array.isArray(item.downloadLinks)) {
         for (const link of item.downloadLinks) {
           if (link.url) {
-            const newUrl = applyMigrationReplacements(link.url, findText, replaceText, flexMatch);
+            const newUrl = applyMigrationReplacements(link.url, findText, replaceText, mode, flexMatch);
             if (newUrl !== link.url) {
               matchedInItem = true;
               if (!sampleOld) {
@@ -462,7 +539,8 @@ export async function previewLinkMigration(
 export async function migrateDownloadLinks(
   findText: string,
   replaceText: string,
-  flexMatch: boolean = true
+  mode: MigrationMode = 'domain',
+  flexMatch: boolean = false
 ): Promise<{ success: boolean; updatedCount: number; error?: string }> {
   if (!findText || findText.trim() === '') {
     return { success: false, updatedCount: 0, error: 'Find text must be provided.' };
@@ -478,7 +556,7 @@ export async function migrateDownloadLinks(
 
       // Check legacy downloadLink
       if (updatedItem.downloadLink) {
-        const newUrl = applyMigrationReplacements(updatedItem.downloadLink, findText, replaceText, flexMatch);
+        const newUrl = applyMigrationReplacements(updatedItem.downloadLink, findText, replaceText, mode, flexMatch);
         if (newUrl !== updatedItem.downloadLink) {
           updatedItem.downloadLink = newUrl;
           hasChanges = true;
@@ -489,7 +567,7 @@ export async function migrateDownloadLinks(
       if (updatedItem.downloadLinks && Array.isArray(updatedItem.downloadLinks)) {
         updatedItem.downloadLinks = updatedItem.downloadLinks.map(link => {
           if (link.url) {
-            const newUrl = applyMigrationReplacements(link.url, findText, replaceText, flexMatch);
+            const newUrl = applyMigrationReplacements(link.url, findText, replaceText, mode, flexMatch);
             if (newUrl !== link.url) {
               hasChanges = true;
               return {
