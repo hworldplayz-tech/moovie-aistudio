@@ -116,6 +116,7 @@ export type LiveChannel = {
   posterUrl?: string; // Optional logo/poster
   posterPath?: string; // Deprecated or alias, keeping for safety
   createdAt: string;
+  uploadedBy?: string; // ID or username of the user who uploaded this channel
   userAgent?: string;
   viewsCount?: number; // Total unique views/clicks counter
 };

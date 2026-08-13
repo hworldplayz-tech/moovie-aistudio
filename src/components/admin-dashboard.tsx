@@ -352,13 +352,18 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
 
   const fetchLiveChannelsData = async () => {
     const channels = await getLiveChannels();
-    setLocalLiveChannels(channels);
+    if (user?.role === 'partner') {
+      const myChannels = channels.filter(c => c.uploadedBy === user.id || c.uploadedBy === user.username);
+      setLocalLiveChannels(myChannels);
+    } else {
+      setLocalLiveChannels(channels);
+    }
   };
 
   useEffect(() => {
     fetchDashboardData();
     fetchLiveChannelsData(); // Fetch live channels on mount
-  }, []);
+  }, [user]);
 
   const handleEditLiveChannel = (channel: LiveChannel) => {
     setLiveTvForm({
@@ -415,14 +420,18 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
       };
 
       if (editingChannelId) {
-        await updateLiveChannel(editingChannelId, channelData);
+        const existingChannel = localLiveChannels.find(c => c.id === editingChannelId);
+        await updateLiveChannel(editingChannelId, {
+          ...channelData,
+          uploadedBy: existingChannel?.uploadedBy || user?.username || user?.id,
+        });
         toast({ title: 'Success', description: 'Channel updated successfully' });
         setEditingChannelId(null);
       } else {
         await addLiveChannel({
-          id: '', // Firestore handles ID if we use addDoc logic inside helper, or helper generates it. 
-          // Looking at previous valid code: id: '', createdAt: ...
+          id: '',
           ...channelData,
+          uploadedBy: user?.username || user?.id,
           createdAt: new Date().toISOString(),
         } as any);
         toast({ title: 'Success', description: 'Live TV Channel added successfully' });
