@@ -736,7 +736,7 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
 
   return (
     <div className="p-4 md:p-8 space-y-8">
-      <h1 className="text-3xl font-bold">Admin Dashboard</h1>
+      <h1 className="text-3xl font-bold">{user?.role === 'partner' ? 'Partner Dashboard' : 'Admin Dashboard'}</h1>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         <StatCard title="Total Movies" value={movieCount} icon={Film} isLoading={loadingStats} />
@@ -785,15 +785,19 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
             <TabsTrigger value="livetv" className="text-xs sm:text-sm py-2 px-3 shrink-0 whitespace-nowrap flex items-center gap-1.5">
               <Tv className="h-3.5 w-3.5 sm:h-4 sm:w-4" /> Live TV
             </TabsTrigger>
-            <TabsTrigger value="player" className="text-xs sm:text-sm py-2 px-3 shrink-0 whitespace-nowrap flex items-center gap-1.5">
-              <Video className="h-3.5 w-3.5 sm:h-4 sm:w-4" /> Player Builder
-            </TabsTrigger>
-            <TabsTrigger value="ads" className="text-xs sm:text-sm py-2 px-3 shrink-0 whitespace-nowrap flex items-center gap-1.5">
-              <DollarSign className="h-3.5 w-3.5 sm:h-4 sm:w-4" /> Ads Management
-            </TabsTrigger>
-            <TabsTrigger value="views" className="text-xs sm:text-sm py-2 px-3 shrink-0 whitespace-nowrap flex items-center gap-1.5">
-              <BarChart3 className="h-3.5 w-3.5 sm:h-4 sm:w-4" /> Views & Analytics
-            </TabsTrigger>
+            {user?.role === 'admin' && (
+              <>
+                <TabsTrigger value="player" className="text-xs sm:text-sm py-2 px-3 shrink-0 whitespace-nowrap flex items-center gap-1.5">
+                  <Video className="h-3.5 w-3.5 sm:h-4 sm:w-4" /> Player Builder
+                </TabsTrigger>
+                <TabsTrigger value="ads" className="text-xs sm:text-sm py-2 px-3 shrink-0 whitespace-nowrap flex items-center gap-1.5">
+                  <DollarSign className="h-3.5 w-3.5 sm:h-4 sm:w-4" /> Ads Management
+                </TabsTrigger>
+                <TabsTrigger value="views" className="text-xs sm:text-sm py-2 px-3 shrink-0 whitespace-nowrap flex items-center gap-1.5">
+                  <BarChart3 className="h-3.5 w-3.5 sm:h-4 sm:w-4" /> Views & Analytics
+                </TabsTrigger>
+              </>
+            )}
           </TabsList>
         </div>
 
@@ -2220,43 +2224,47 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
           </div>
         </TabsContent>
 
-        <TabsContent value="player">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center">
-                <Video className="mr-2 h-6 w-6" />
-                Player Builder
-              </CardTitle>
-              <CardDescription>
-                Create and manage custom video players with playlists. Generate iframe codes for embedding.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <PlayerBuilder onPlayerCreated={fetchDashboardData} />
-            </CardContent>
-          </Card>
-        </TabsContent>
+        {user?.role === 'admin' && (
+          <>
+            <TabsContent value="player">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center">
+                    <Video className="mr-2 h-6 w-6" />
+                    Player Builder
+                  </CardTitle>
+                  <CardDescription>
+                    Create and manage custom video players with playlists. Generate iframe codes for embedding.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <PlayerBuilder onPlayerCreated={fetchDashboardData} />
+                </CardContent>
+              </Card>
+            </TabsContent>
 
-        <TabsContent value="ads">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center">
-                <DollarSign className="mr-2 h-6 w-6" />
-                Ads Management
-              </CardTitle>
-              <CardDescription>
-                Manage ad networks, scripts, and placements. Control ads site-wide.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <AdsManagement />
-            </CardContent>
-          </Card>
-        </TabsContent>
+            <TabsContent value="ads">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center">
+                    <DollarSign className="mr-2 h-6 w-6" />
+                    Ads Management
+                  </CardTitle>
+                  <CardDescription>
+                    Manage ad networks, scripts, and placements. Control ads site-wide.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <AdsManagement />
+                </CardContent>
+              </Card>
+            </TabsContent>
 
-        <TabsContent value="views">
-          <AdminViewsAnalytics />
-        </TabsContent>
+            <TabsContent value="views">
+              <AdminViewsAnalytics />
+            </TabsContent>
+          </>
+        )}
       </Tabs>
     </div>
   );
