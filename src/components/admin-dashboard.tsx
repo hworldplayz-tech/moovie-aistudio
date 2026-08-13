@@ -16,7 +16,7 @@ import { useToast } from '@/hooks/use-toast';
 import { ContentFormDialog } from './content-form-dialog';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
-import { getLogoText, updateLogoText, getPaginationLimit, updatePaginationLimit, syncContentMetadata, getSecureDownloadSettings, updateSecureDownloadSettings, migrateDownloadDomains, migrateDownloadLinks, previewLinkMigration, scanDatabaseDownloadLinks, getContentRequestsAction, updateContentRequestStatusAction, deleteContentRequestAction, addContent, getDownloadLinkPresets, updateDownloadLinkPresets } from '@/app/admin/actions';
+import { getLogoText, updateLogoText, getPaginationLimit, updatePaginationLimit, syncContentMetadata, getSecureDownloadSettings, updateSecureDownloadSettings, migrateDownloadDomains, migrateDownloadLinks, previewLinkMigration, scanDatabaseDownloadLinks, getContentRequestsAction, updateContentRequestStatusAction, deleteContentRequestAction, addContent, getDownloadLinkPresets, updateDownloadLinkPresets, toggleFilmyzillaLinksAction } from '@/app/admin/actions';
 import {
   getContentFromFirestore,
   addContentToFirestore,
@@ -110,6 +110,7 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
   const { toast } = useToast();
 
   const [globalDownloadsEnabled, setGlobalDownloadsEnabled] = useState(true);
+  const [filmyzillaLinksEnabled, setFilmyzillaLinksEnabled] = useState(true);
   const [logoText, setLogoText] = useState('');
   const [paginationLimit, setPaginationLimit] = useState(20);
   const [secureDownloadsEnabled, setSecureDownloadsEnabled] = useState(false);
@@ -200,6 +201,7 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
       setSecureDownloadsEnabled(secureSettings.enabled);
       setDownloadDelay(secureSettings.delay);
       setGlobalDownloadsEnabled(secureSettings.globalEnabled);
+      setFilmyzillaLinksEnabled(secureSettings.filmyzillaLinksEnabled !== undefined ? secureSettings.filmyzillaLinksEnabled : true);
       setLinkPresets(presets);
       // Fetch Site Config for other settings
       const siteConfig = await getSiteConfigFromFirestore();
@@ -459,13 +461,14 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
       const [logoResult, limitResult, secureResult] = await Promise.all([
         updateLogoText(logoText),
         updatePaginationLimit(paginationLimit),
-        updateSecureDownloadSettings(secureDownloadsEnabled, downloadDelay, globalDownloadsEnabled)
+        updateSecureDownloadSettings(secureDownloadsEnabled, downloadDelay, globalDownloadsEnabled, filmyzillaLinksEnabled)
       ]);
 
       await saveSiteConfigToFirestore({
         secureDownloadsEnabled,
         downloadButtonDelay: downloadDelay,
         globalDownloadsEnabled,
+        filmyzillaLinksEnabled,
         showLiveTvCarousel,
         logoText,
         paginationLimit,
@@ -872,6 +875,39 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
                       />
                     </div>
 
+                    <div className="flex items-center justify-between space-x-2 border p-4 rounded-lg bg-amber-50/60 dark:bg-amber-950/20 border-amber-300">
+                      <div className="space-y-0.5">
+                        <Label htmlFor="filmyzilla-downloads-switch" className="text-base font-medium text-amber-950 dark:text-amber-200 flex items-center gap-2">
+                          <span>🚨 Filmyzilla Links Kill Switch</span>
+                          <span className={`text-xs px-2 py-0.5 rounded font-bold ${
+                            filmyzillaLinksEnabled ? 'bg-emerald-200 text-emerald-900' : 'bg-red-200 text-red-900'
+                          }`}>
+                            {filmyzillaLinksEnabled ? '🟢 Links ON' : '🔴 Links HIDDEN'}
+                          </span>
+                        </Label>
+                        <p className="text-sm text-amber-800 dark:text-amber-300">
+                          {filmyzillaLinksEnabled
+                            ? 'Turn OFF to hide Filmyzilla download links from all watch pages (other non-Filmyzilla links will still show).'
+                            : 'Filmyzilla links are currently HIDDEN. Only non-Filmyzilla links are displayed on the site.'}
+                        </p>
+                      </div>
+                      <Switch
+                        id="filmyzilla-downloads-switch"
+                        checked={filmyzillaLinksEnabled}
+                        onCheckedChange={async (checked) => {
+                          setFilmyzillaLinksEnabled(checked);
+                          await toggleFilmyzillaLinksAction(checked);
+                          toast({
+                            title: checked ? 'Filmyzilla Links ON' : 'Filmyzilla Links Hidden',
+                            description: checked
+                              ? 'Filmyzilla download links are now visible on site.'
+                              : 'Filmyzilla links are now hidden. Other download links remain visible.',
+                          });
+                        }}
+                        disabled={isSavingSettings}
+                      />
+                    </div>
+
                     <div className="flex items-center justify-between space-x-2 border p-4 rounded-lg bg-blue-50/50">
                       <div className="space-y-0.5">
                         <Label htmlFor="live-carousel" className="text-base font-medium text-blue-900">Show Live TV Carousel</Label>
@@ -1123,6 +1159,60 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
                     </div>
                   </div>
                 </CardContent>
+              </Card>
+
+              {/* Filmyzilla Kill Switch Card */}
+              <Card className={`mb-8 border transition-all ${
+                filmyzillaLinksEnabled
+                  ? 'border-emerald-300 bg-emerald-50/40 dark:bg-emerald-950/20'
+                  : 'border-red-400 bg-red-100/70 dark:bg-red-950/30 shadow-md'
+              }`}>
+                <CardHeader className="pb-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <CardTitle className="flex items-center text-foreground text-lg">
+                          🚨 Filmyzilla Download Links Kill Switch
+                        </CardTitle>
+                        <Badge
+                          variant={filmyzillaLinksEnabled ? "outline" : "destructive"}
+                          className={filmyzillaLinksEnabled ? "bg-emerald-100 text-emerald-800 border-emerald-300 font-bold" : "font-bold animate-pulse"}
+                        >
+                          {filmyzillaLinksEnabled ? '🟢 ON (Showing All Links)' : '🔴 OFF (Filmyzilla Links HIDDEN)'}
+                        </Badge>
+                      </div>
+                      <CardDescription className="text-xs text-muted-foreground leading-relaxed">
+                        {filmyzillaLinksEnabled
+                          ? 'Filmyzilla download links are currently ACTIVE and visible on all movie & TV show watch pages on your site.'
+                          : 'Filmyzilla download links are currently HIDDEN & DISABLED site-wide because Filmyzilla uses a token system redirect. Other download links (GDrive, Terabox, Mega, etc.) remain fully visible and downloadable!'}
+                      </CardDescription>
+                    </div>
+                    <div className="flex items-center gap-3 shrink-0 p-3 bg-background/80 rounded-xl border border-border/60">
+                      <Switch
+                        id="filmyzilla-kill-switch-card"
+                        checked={filmyzillaLinksEnabled}
+                        onCheckedChange={async (checked) => {
+                          setFilmyzillaLinksEnabled(checked);
+                          const res = await toggleFilmyzillaLinksAction(checked);
+                          if (res.success) {
+                            toast({
+                              title: checked ? 'Filmyzilla Links ON' : 'Filmyzilla Links HIDDEN',
+                              description: checked
+                                ? 'All Filmyzilla download links are now visible on the website.'
+                                : 'Filmyzilla download links are now hidden site-wide. Other links remain visible.',
+                            });
+                          } else {
+                            toast({ variant: 'destructive', title: 'Error', description: 'Failed to update Filmyzilla kill switch state.' });
+                            setFilmyzillaLinksEnabled(!checked);
+                          }
+                        }}
+                      />
+                      <Label htmlFor="filmyzilla-kill-switch-card" className="font-bold text-sm cursor-pointer">
+                        {filmyzillaLinksEnabled ? 'Kill Switch OFF' : 'Kill Switch ON'}
+                      </Label>
+                    </div>
+                  </div>
+                </CardHeader>
               </Card>
 
               {/* Link Migration & Pattern Replacement Tool */}

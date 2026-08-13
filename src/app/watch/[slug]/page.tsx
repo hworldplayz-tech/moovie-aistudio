@@ -203,7 +203,26 @@ export default async function WatchPage({ params }: WatchPageProps) {
   const primaryVideoSrc = content.trailerUrl || content.youtubeTrailerUrl;
 
   // Fetch secure download settings
-  const { enabled: secureEnabled, globalEnabled } = await getSecureDownloadSettings();
+  const { enabled: secureEnabled, globalEnabled, filmyzillaLinksEnabled = true } = await getSecureDownloadSettings();
+
+  // Helper to check Filmyzilla links
+  const isFilmyzillaLink = (url?: string) => !!url && url.toLowerCase().includes('filmyzilla');
+
+  // Filter download links if Filmyzilla kill switch is OFF
+  const rawDownloadLinks = content.downloadLinks || [];
+  const activeDownloadLinks = rawDownloadLinks.filter(link => {
+    if (!filmyzillaLinksEnabled && isFilmyzillaLink(link.url)) {
+      return false;
+    }
+    return true;
+  });
+
+  let activeLegacyLink = content.downloadLink;
+  if (!filmyzillaLinksEnabled && isFilmyzillaLink(activeLegacyLink)) {
+    activeLegacyLink = undefined;
+  }
+
+  const hasDownloadButtons = activeDownloadLinks.length > 0 || !!activeLegacyLink;
 
   return (
     <div className="flex flex-col">
@@ -322,8 +341,8 @@ export default async function WatchPage({ params }: WatchPageProps) {
 
               {/* Download Button Logic - FOR ITEMS IN LIBRARY */}
               {!isTmdbOnly && globalEnabled && (
-                ((content.downloadLinks && content.downloadLinks.length > 0) || content.downloadLink) ? (
-                  content.downloadLinks && content.downloadLinks.length > 1 ? (
+                hasDownloadButtons ? (
+                  activeDownloadLinks.length > 1 ? (
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button size="lg" variant="outline" className="font-semibold">
@@ -333,9 +352,10 @@ export default async function WatchPage({ params }: WatchPageProps) {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        {content.downloadLinks.map((link, index) => {
+                        {activeDownloadLinks.map((link, index) => {
+                          const origIndex = content.downloadLinks?.findIndex(l => l.url === link.url) ?? index;
                           const downloadHref = secureEnabled
-                            ? `/download?id=${content.id}&index=${index}`
+                            ? `/download?id=${content.id}&index=${origIndex >= 0 ? origIndex : index}`
                             : link.url;
                           return (
                             <DropdownMenuItem key={index} asChild>
@@ -351,8 +371,8 @@ export default async function WatchPage({ params }: WatchPageProps) {
                     <Button asChild size="lg" variant="outline" className="font-semibold">
                       <Link
                         href={secureEnabled
-                          ? `/download?id=${content.id}`
-                          : (content.downloadLink || (content.downloadLinks ? content.downloadLinks[0].url : '#'))}
+                          ? `/download?id=${content.id}${activeDownloadLinks.length === 1 ? `&index=${content.downloadLinks?.findIndex(l => l.url === activeDownloadLinks[0].url) ?? 0}` : ''}`
+                          : (activeLegacyLink || (activeDownloadLinks.length > 0 ? activeDownloadLinks[0].url : '#'))}
                         target={secureEnabled ? "_self" : "_blank"}
                         rel="noopener noreferrer"
                       >

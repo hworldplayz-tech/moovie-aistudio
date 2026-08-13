@@ -126,6 +126,7 @@ export type SiteConfig = {
     secureDownloadsEnabled?: boolean;
     downloadButtonDelay?: number;
     globalDownloadsEnabled?: boolean;
+    filmyzillaLinksEnabled?: boolean;
     showLiveTvCarousel?: boolean;
     siteTitle?: string;
     titleSuffix?: string;

@@ -62,6 +62,7 @@ export async function getSecureDownloadSettings(): Promise<{
   enabled: boolean;
   delay: number;
   globalEnabled: boolean;
+  filmyzillaLinksEnabled: boolean;
   showLiveTvCarousel: boolean;
   showFeaturedSection?: boolean;
   featuredLayout?: 'slider' | 'grid' | 'list';
@@ -76,6 +77,7 @@ export async function getSecureDownloadSettings(): Promise<{
     enabled: !!config.secureDownloadsEnabled,
     delay: typeof config.downloadButtonDelay === 'number' ? config.downloadButtonDelay : 5,
     globalEnabled: config.globalDownloadsEnabled !== undefined ? config.globalDownloadsEnabled : true,
+    filmyzillaLinksEnabled: config.filmyzillaLinksEnabled !== undefined ? config.filmyzillaLinksEnabled : true,
     showLiveTvCarousel: config.showLiveTvCarousel !== undefined ? config.showLiveTvCarousel : true,
     showFeaturedSection: config.showFeaturedSection,
     featuredLayout: config.featuredLayout,
@@ -86,7 +88,8 @@ export async function getSecureDownloadSettings(): Promise<{
 export async function updateSecureDownloadSettings(
   enabled: boolean,
   delay: number,
-  globalEnabled: boolean
+  globalEnabled: boolean,
+  filmyzillaLinksEnabled: boolean = true
 ): Promise<{ success: boolean; error?: string }> {
   if (typeof delay !== 'number' || delay < 0) {
     return { success: false, error: 'Delay must be a positive number.' };
@@ -96,12 +99,25 @@ export async function updateSecureDownloadSettings(
     await saveSiteConfigToFirestore({
       secureDownloadsEnabled: enabled,
       downloadButtonDelay: delay,
-      globalDownloadsEnabled: globalEnabled
+      globalDownloadsEnabled: globalEnabled,
+      filmyzillaLinksEnabled: filmyzillaLinksEnabled
     });
     return { success: true };
   } catch (error) {
     console.error('Failed to update secure download settings:', error);
     return { success: false, error: 'Failed to save to database.' };
+  }
+}
+
+export async function toggleFilmyzillaLinksAction(enabled: boolean): Promise<{ success: boolean; error?: string }> {
+  try {
+    await saveSiteConfigToFirestore({
+      filmyzillaLinksEnabled: enabled
+    });
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to toggle Filmyzilla links kill switch:', error);
+    return { success: false, error: 'Failed to save setting.' };
   }
 }
 
@@ -633,6 +649,12 @@ export async function getDownloadUrl(
     }
 
     if (!url) {
+      return null;
+    }
+
+    // Check Filmyzilla kill switch
+    const settings = await getSecureDownloadSettings();
+    if (!settings.filmyzillaLinksEnabled && url.toLowerCase().includes('filmyzilla')) {
       return null;
     }
 
