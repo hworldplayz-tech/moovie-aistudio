@@ -58,71 +58,60 @@ export default function BrowseClient({
 
     const isFilteredView = q || type || genre || region || year || hindiDubbed;
 
-    // Re-fetch only if filters change (Client-side filtering)
+    // Instant Client-side filtering and fast background TMDB search
     useEffect(() => {
-        // If we have filters, we might need to re-filter content or fetch if it wasn't passed initially in a filtered state?
-        // Current architecture fetches everything then filters locally for manual content?
-        // Actually, page.tsx original logic did fetch local content and filter it.
-        // If we are server-side fetching, we passed initialContent.
-        // If user changes filters, we need to apply them.
+        if (!isFilteredView) {
+            setContent(initialContent);
+            setIsLoading(false);
+            return;
+        }
 
-        // If initial load, we skip because initialContent is already correct?
-        // Wait, initialContent passed from server should be "all local content" or "filtered content"?
-        // Best practice: Pass all local content if dataset small, or fetched filtered.
-        // Assuming `initialContent` is ALL content for now if we want to keep client-side filtering logic simple without server actions for everything.
-        // OR we re-implement the fetch logic here for client navigation.
-
-        // For now, let's keep the existing logic:
-        // If it's a filtered view (via search params), we need to derive the displayed content.
-
-        const applyFilters = async () => {
-            setIsLoading(true);
-            try {
-                const localContent = await getManuallyAddedContent();
-
-                // If user is searching by query, fetch TMDB API results too
-                let tmdbResults: Content[] = [];
-                if (q && q.trim().length > 0) {
-                    try {
-                        const { searchContent } = await import('@/lib/tmdb');
-                        tmdbResults = await searchContent(q.trim());
-                    } catch (err) {
-                        console.error('TMDB search error:', err);
-                    }
+        // Helper to filter local array in memory (takes < 1ms)
+        const filterLocal = (list: Content[]) => {
+            return list.filter(item => {
+                if (type && item.type !== type) return false;
+                if (genre && !item.genres?.some(g => String(g) === genre || (typeof g === 'string' && g.toLowerCase() === genre.toLowerCase()))) return false;
+                if (year) {
+                    const releaseYear = item.releaseDate ? item.releaseDate.split('-')[0] : '';
+                    const airYear = item.lastAirDate ? item.lastAirDate.split('-')[0] : '';
+                    if (releaseYear !== year && airYear !== year) return false;
                 }
+                if (region) {
+                    const regionLower = region.toLowerCase();
+                    const matchLang = item.languages?.some(l => 
+                        l.toLowerCase() === regionLower || 
+                        l.toLowerCase().includes(regionLower)
+                    );
+                    const matchCountry = (item.country || '').toLowerCase() === regionLower;
+                    const matchOriginalLang = (item.originalLanguage || '').toLowerCase() === regionLower;
+                    if (!matchLang && !matchCountry && !matchOriginalLang) return false;
+                }
+                if (q && !(item.title || '').toLowerCase().includes(q.toLowerCase().trim())) return false;
+                if (hindiDubbed) {
+                    const isHindi = item.isHindiDubbed || item.languages?.some(l => l.toLowerCase().includes('hindi'));
+                    if (!isHindi) return false;
+                }
+                return true;
+            }).map(item => ({ ...item, inLibrary: true }));
+        };
 
-                // Filter uploaded local content
-                const filteredLocalContent = localContent.filter(item => {
-                    if (type && item.type !== type) return false;
-                    if (genre && !item.genres?.some(g => String(g) === genre || (typeof g === 'string' && g.toLowerCase() === genre.toLowerCase()))) return false;
-                    if (year) {
-                        const releaseYear = item.releaseDate ? item.releaseDate.split('-')[0] : '';
-                        const airYear = item.lastAirDate ? item.lastAirDate.split('-')[0] : '';
-                        if (releaseYear !== year && airYear !== year) return false;
-                    }
-                    if (region) {
-                        const regionLower = region.toLowerCase();
-                        const matchLang = item.languages?.some(l => 
-                            l.toLowerCase() === regionLower || 
-                            l.toLowerCase().includes(regionLower)
-                        );
-                        const matchCountry = (item.country || '').toLowerCase() === regionLower;
-                        const matchOriginalLang = (item.originalLanguage || '').toLowerCase() === regionLower;
-                        if (!matchLang && !matchCountry && !matchOriginalLang) return false;
-                    }
-                    if (q && !(item.title || '').toLowerCase().includes(q.toLowerCase())) return false;
-                    if (hindiDubbed) {
-                        const isHindi = item.isHindiDubbed || item.languages?.some(l => l.toLowerCase().includes('hindi'));
-                        if (!isHindi) return false;
-                    }
-                    return true;
-                }).map(item => ({ ...item, inLibrary: true }));
+        // 1. Instantly display local matches from memory without waiting
+        const instantFiltered = filterLocal(initialContent);
+        setContent(instantFiltered);
 
-                if (q && q.trim().length > 0) {
-                    const localIds = new Set(localContent.map(c => String(c.id)));
-                    const localTitles = new Set(localContent.map(c => (c.title || '').toLowerCase().trim()));
+        // 2. If searching with query `q`, asynchronously fetch & merge TMDB results
+        let isCancelled = false;
+        if (q && q.trim().length > 0) {
+            const queryTrimmed = q.trim();
+            const fetchTmdb = async () => {
+                try {
+                    const { searchContent } = await import('@/lib/tmdb');
+                    const tmdbResults = await searchContent(queryTrimmed);
+                    if (isCancelled) return;
 
-                    // Filter TMDB results to exclude items already uploaded
+                    const localIds = new Set(initialContent.map(c => String(c.id)));
+                    const localTitles = new Set(initialContent.map(c => (c.title || '').toLowerCase().trim()));
+
                     const uniqueTmdbItems = tmdbResults
                         .filter(item => {
                             if (type && item.type !== type) return false;
@@ -140,22 +129,17 @@ export default function BrowseClient({
                             slug: `${item.type || 'movie'}-${item.id}-${slugify(item.title)}`
                         }));
 
-                    setContent([...filteredLocalContent, ...uniqueTmdbItems]);
-                } else {
-                    setContent(filteredLocalContent);
+                    setContent([...instantFiltered, ...uniqueTmdbItems]);
+                } catch (err) {
+                    console.error('TMDB search error:', err);
                 }
-            } catch (e) { console.error(e); }
-            setIsLoading(false);
-        };
+            };
 
-        if (isFilteredView) {
-            applyFilters();
-        } else {
-            // If clear, reset to initial? Or re-fetch all? 
-            // If we navigated back to home, `initialContent` prop is from Server Request.
-            // But `useEffect` runs on mount. 
-            // We can just use `initialContent` if no params, but we need to ensure `content` state is updated when params change back to empty.
-            setContent(initialContent);
+            const timer = setTimeout(fetchTmdb, 100);
+            return () => {
+                isCancelled = true;
+                clearTimeout(timer);
+            };
         }
     }, [q, type, genre, region, year, hindiDubbed, initialContent, isFilteredView]);
 

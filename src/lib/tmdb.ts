@@ -37,29 +37,88 @@ type TmdbCredit = {
     profile_path: string;
 }
 
-let genreMap: Map<number | string, string> | null = null;
-let genreList: Genre[] | null = null;
+const DEFAULT_GENRES: Genre[] = [
+    { id: 28, name: "Action" },
+    { id: 12, name: "Adventure" },
+    { id: 16, name: "Animation" },
+    { id: 35, name: "Comedy" },
+    { id: 80, name: "Crime" },
+    { id: 99, name: "Documentary" },
+    { id: 18, name: "Drama" },
+    { id: 10751, name: "Family" },
+    { id: 14, name: "Fantasy" },
+    { id: 36, name: "History" },
+    { id: 27, name: "Horror" },
+    { id: 10402, name: "Music" },
+    { id: 9648, name: "Mystery" },
+    { id: 10749, name: "Romance" },
+    { id: 878, name: "Science Fiction" },
+    { id: 10770, name: "TV Movie" },
+    { id: 53, name: "Thriller" },
+    { id: 10752, name: "War" },
+    { id: 37, name: "Western" },
+    { id: 10759, name: "Action & Adventure" },
+    { id: 10762, name: "Kids" },
+    { id: 10763, name: "News" },
+    { id: 10764, name: "Reality" },
+    { id: 10765, name: "Sci-Fi & Fantasy" },
+    { id: 10766, name: "Soap" },
+    { id: 10767, name: "Talk" },
+    { id: 10768, name: "War & Politics" },
+];
+
+let genreMap: Map<number | string, string> = new Map(DEFAULT_GENRES.map(g => [g.id, g.name]));
+let genreList: Genre[] = DEFAULT_GENRES;
+
+// Caches for lightning-fast lookups
+const searchCache = new Map<string, { data: Content[]; timestamp: number }>();
+const contentDetailCache = new Map<string, { data: Content | null; timestamp: number }>();
+const browseCache = new Map<string, { data: Content[]; timestamp: number }>();
+let trendingCache: { data: Content[]; timestamp: number } | null = null;
+
+const CACHE_TTL_SHORT = 10 * 60 * 1000; // 10 minutes
+const CACHE_TTL_LONG = 60 * 60 * 1000;  // 1 hour
+
+// Helper to fetch safely without throwing unhandled abort errors
+async function fetchSafe(url: string, options: RequestInit = {}): Promise<Response> {
+    try {
+        const res = await fetch(url, {
+            ...options,
+            // Use 15s timeout via AbortSignal if available, else standard fetch
+            signal: typeof AbortSignal !== 'undefined' && 'timeout' in AbortSignal ? (AbortSignal as any).timeout(12000) : undefined,
+        });
+        return res;
+    } catch (e: any) {
+        // Suppress abort warnings and rethrow clean
+        throw new Error(`Fetch failed for ${url}: ${e?.message || 'network error'}`);
+    }
+}
 
 async function fetchGenres() {
-    if (genreMap) return { genreMap, genreList };
+    if (genreMap && genreMap.size > 0 && genreList && genreList.length > 0) {
+        return { genreMap, genreList };
+    }
     try {
-        const movieResponse = await fetch(`${TMDB_BASE_URL}/genre/movie/list?api_key=${TMDB_API_KEY}`, { next: { revalidate: 86400 } });
-        const tvResponse = await fetch(`${TMDB_BASE_URL}/genre/tv/list?api_key=${TMDB_API_KEY}`, { next: { revalidate: 86400 } });
+        const [movieResponse, tvResponse] = await Promise.all([
+            fetchSafe(`${TMDB_BASE_URL}/genre/movie/list?api_key=${TMDB_API_KEY}`, { next: { revalidate: 86400 } } as any),
+            fetchSafe(`${TMDB_BASE_URL}/genre/tv/list?api_key=${TMDB_API_KEY}`, { next: { revalidate: 86400 } } as any)
+        ]);
         const movieData = await movieResponse.json();
         const tvData = await tvResponse.json();
 
-        const allGenres: Genre[] = [...movieData.genres, ...tvData.genres];
+        const allGenres: Genre[] = [...(movieData.genres || []), ...(tvData.genres || [])];
         const uniqueGenres = Array.from(new Map(allGenres.map(g => [g.id, g])).values());
 
-        genreList = uniqueGenres;
-        genreMap = new Map();
-        uniqueGenres.forEach(genre => {
-            genreMap!.set(genre.id, genre.name);
-        });
+        if (uniqueGenres.length > 0) {
+            genreList = uniqueGenres;
+            genreMap = new Map();
+            uniqueGenres.forEach(genre => {
+                genreMap.set(genre.id, genre.name);
+            });
+        }
         return { genreMap, genreList };
-    } catch (error) {
-        console.error('Failed to fetch genres:', error);
-        return { genreMap: new Map(), genreList: [] };
+    } catch {
+        return { genreMap, genreList };
     }
 }
 
@@ -95,7 +154,7 @@ function tmdbContentToContent(item: TmdbContent, type: 'movie' | 'tv' | 'person'
 async function fetchAndTransformContent(url: string, type: 'movie' | 'tv' | 'person' = 'movie') {
     const { genreMap: allGenres } = await fetchGenres();
     try {
-        const response = await fetch(url, { next: { revalidate: 3600 } });
+        const response = await fetchSafe(url, { next: { revalidate: 3600 } } as any);
         const data = await response.json();
         const results = (data.results || [data]) as TmdbContent[];
 
@@ -111,7 +170,7 @@ async function fetchAndTransformContent(url: string, type: 'movie' | 'tv' | 'per
 async function fetchAndTransformSingleContent(url: string, type: 'movie' | 'tv') {
     const { genreMap: allGenres } = await fetchGenres();
     try {
-        const response = await fetch(url, { next: { revalidate: 3600 } });
+        const response = await fetchSafe(url, { next: { revalidate: 3600 } } as any);
         if (!response.ok) return null;
         const data = await response.json() as TmdbContent & { genres: Genre[], videos: { results: { type: string, key: string, site: string }[] }, credits: { cast: TmdbCredit[] } };
 
@@ -157,8 +216,16 @@ export async function getFeatured(): Promise<Content | null> {
 }
 
 export async function getTrending(): Promise<Content[]> {
+    const now = Date.now();
+    if (trendingCache && (now - trendingCache.timestamp < CACHE_TTL_SHORT)) {
+        return trendingCache.data;
+    }
     const url = `${TMDB_BASE_URL}/trending/all/week?api_key=${TMDB_API_KEY}`;
-    return (await fetchAndTransformContent(url, 'movie')).slice(0, 12);
+    const result = (await fetchAndTransformContent(url, 'movie')).slice(0, 12);
+    if (result.length > 0) {
+        trendingCache = { data: result, timestamp: now };
+    }
+    return result;
 }
 
 export async function getPopular(): Promise<Content[]> {
@@ -172,6 +239,13 @@ export async function getNewReleases(): Promise<Content[]> {
 }
 
 export async function getContentById(id: string, type?: 'movie' | 'tv', expectedKeywords?: string): Promise<Content | null> {
+    const cacheKey = `${id}-${type || 'any'}-${expectedKeywords || ''}`;
+    const now = Date.now();
+    const cached = contentDetailCache.get(cacheKey);
+    if (cached && (now - cached.timestamp < CACHE_TTL_LONG)) {
+        return cached.data;
+    }
+
     const manuallyAdded = await getManuallyAddedContent();
     const manualItem = manuallyAdded.find(c => String(c.id) === id);
 
@@ -211,8 +285,9 @@ export async function getContentById(id: string, type?: 'movie' | 'tv', expected
         }
     }
 
+    let finalResult: Content | null = null;
     if (manualItem) {
-        return {
+        finalResult = {
             ...(apiContent || {} as Content), // Base TMDB data
             ...manualItem, // Override with manual data
             id: manualItem.id, // Ensure manual ID is kept
@@ -230,9 +305,12 @@ export async function getContentById(id: string, type?: 'movie' | 'tv', expected
             cast: apiContent?.cast || [],
             lastAirDate: apiContent?.lastAirDate,
         };
+    } else {
+        finalResult = apiContent;
     }
 
-    return apiContent;
+    contentDetailCache.set(cacheKey, { data: finalResult, timestamp: now });
+    return finalResult;
 }
 
 export async function getContentByIds(ids: string[]): Promise<Content[]> {
@@ -242,19 +320,33 @@ export async function getContentByIds(ids: string[]): Promise<Content[]> {
 }
 
 export async function searchContent(query: string): Promise<Content[]> {
+    const normalizedQuery = query.toLowerCase().trim();
+    const now = Date.now();
+    const cached = searchCache.get(normalizedQuery);
+    if (cached && (now - cached.timestamp < CACHE_TTL_SHORT)) {
+        return cached.data;
+    }
+
     const url = `${TMDB_BASE_URL}/search/multi?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(query)}`;
-    return await fetchAndTransformContent(url, 'movie');
+    const results = await fetchAndTransformContent(url, 'movie');
+    searchCache.set(normalizedQuery, { data: results, timestamp: now });
+    return results;
 }
 
 export async function getBrowseContent({ genre, type, region, year }: { genre?: string; type?: 'movie' | 'tv'; region?: string; year?: string }): Promise<Content[]> {
+    const cacheKey = `browse-${genre || ''}-${type || ''}-${region || ''}-${year || ''}`;
+    const now = Date.now();
+    const cached = browseCache.get(cacheKey);
+    if (cached && (now - cached.timestamp < CACHE_TTL_SHORT)) {
+        return cached.data;
+    }
+
     const resolvedType = type || 'movie';
     let url = new URL(`${TMDB_BASE_URL}/discover/${resolvedType}`);
     url.searchParams.append('api_key', TMDB_API_KEY);
 
     if (genre) {
-        // Resolve genre name to ID if possible
         let genreId = genre;
-        // If genre is not a number, try to find ID from name
         if (isNaN(Number(genre))) {
             const { genreList } = await fetchGenres();
             const found = genreList?.find(g => g.name.toLowerCase() === genre.toLowerCase());
@@ -262,25 +354,11 @@ export async function getBrowseContent({ genre, type, region, year }: { genre?: 
                 genreId = String(found.id);
             }
         }
-
-        // If we found an ID (or it was already an ID), use it. 
-        // If it's a custom genre (no ID found), we can't filter via TMDB API 'with_genres' easily unless we send nothing and filter locally (which is what page.tsx does for manual).
-        // However, if we don't send 'with_genres', we get ALL results.
-        // It's better to NOT send with_genres if it's a custom genre, and rely on local filtering (but local filtering only filters MANUAL content).
-        // TMDB discover API doesn't support "custom tags".
-        // So for custom genres, we probably shouldn't fetch from TMDB discover at all?
-        // But getBrowseContent is for TMDB content.
-        // If genreId is strictly numeric (standard TMDB genre), we append it.
-        // If it's not numeric (custom), we append nothing (so we fetch basic popular/discover) OR we return empty?
-
-        // Current behavior: if we pass "Pakistani Drama" to TMDB with_genres, it might error or ignore.
-        // Let's only append if it's numeric/resolved.
         if (!isNaN(Number(genreId))) {
             url.searchParams.append('with_genres', genreId);
         }
     }
     if (region) {
-        // Use with_origin_country for filtering by country of production
         url.searchParams.append('with_origin_country', region);
     }
     if (year) {
@@ -293,7 +371,9 @@ export async function getBrowseContent({ genre, type, region, year }: { genre?: 
 
     url.searchParams.append('sort_by', 'popularity.desc');
 
-    return await fetchAndTransformContent(url.toString(), resolvedType);
+    const results = await fetchAndTransformContent(url.toString(), resolvedType);
+    browseCache.set(cacheKey, { data: results, timestamp: now });
+    return results;
 }
 
 export async function getManuallyAddedContent(): Promise<Content[]> {

@@ -29,6 +29,7 @@ import { RequestUploadButton } from "@/components/request-upload-button";
 import { ViewCounter } from "@/components/view-counter";
 
 
+import { cache } from 'react';
 import type { Metadata } from 'next';
 
 type WatchPageProps = {
@@ -37,7 +38,7 @@ type WatchPageProps = {
   }>;
 };
 
-async function resolveContentFromSlug(slug: string) {
+const resolveContentFromSlug = cache(async (slug: string) => {
   let manualItem = await getContentBySlug(slug);
 
   let typeOverride: 'movie' | 'tv' | undefined = undefined;
@@ -136,7 +137,7 @@ async function resolveContentFromSlug(slug: string) {
     manualItem: isInLibrary ? (manualItem || finalContent) : null,
     isTmdbOnly 
   };
-}
+});
 
 export async function generateMetadata({ params }: WatchPageProps): Promise<Metadata> {
   const { slug } = await params;

@@ -1,7 +1,7 @@
 
 
 'use client';
-import { useState, useRef, useEffect } from 'react';
+import { memo } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import type { Content } from '@/lib/definitions';
@@ -35,7 +35,7 @@ interface ContentCardProps {
   variant?: 'grid' | 'list';
 }
 
-export function ContentCard({
+function ContentCardComponent({
   content,
   priority = false,
   showAdminControls,
@@ -45,10 +45,6 @@ export function ContentCard({
   className,
   variant = 'grid'
 }: ContentCardProps) {
-  const [isHovered, setIsHovered] = useState(false);
-  const [isMouseMoving, setIsMouseMoving] = useState(false);
-  const mouseMoveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-
   /* Helper to optimize TMDB images manually by requesting smaller size */
   const getOptimizedPoster = (url?: string, size: string = 'w342') => {
     if (!url || typeof url !== 'string') return '/placeholder.png';
@@ -235,3 +231,5 @@ export function ContentCard({
     </div>
   );
 }
+
+export const ContentCard = memo(ContentCardComponent);

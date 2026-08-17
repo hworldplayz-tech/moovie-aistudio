@@ -26,6 +26,34 @@ function sanitizeForFirestore(obj: any): any {
     return obj;
 }
 
+// In-Memory High-Performance Caching
+let cachedAllContent: Content[] | null = null;
+let cachedAllContentTime = 0;
+const CONTENT_CACHE_TTL = 60 * 1000; // 60 seconds
+
+let cachedSiteConfig: SiteConfig | null = null;
+let cachedSiteConfigTime = 0;
+const CONFIG_CACHE_TTL = 120 * 1000; // 2 minutes
+
+let cachedLiveChannels: LiveChannel[] | null = null;
+let cachedLiveChannelsTime = 0;
+const LIVE_TV_CACHE_TTL = 60 * 1000;
+
+export function invalidateContentCache() {
+    cachedAllContent = null;
+    cachedAllContentTime = 0;
+}
+
+export function invalidateConfigCache() {
+    cachedSiteConfig = null;
+    cachedSiteConfigTime = 0;
+}
+
+export function invalidateLiveTvCache() {
+    cachedLiveChannels = null;
+    cachedLiveChannelsTime = 0;
+}
+
 /**
  * Add or update content in Firestore
  */
@@ -49,6 +77,7 @@ export async function addContentToFirestore(content: Content): Promise<{ success
         });
 
         await setDoc(contentRef, dataToSave);
+        invalidateContentCache();
         return { success: true };
     } catch (error) {
         console.error('Failed to add content to Firestore:', error);
@@ -57,9 +86,14 @@ export async function addContentToFirestore(content: Content): Promise<{ success
 }
 
 /**
- * Get all manually added content from Firestore
+ * Get all manually added content from Firestore with in-memory caching
  */
 export async function getContentFromFirestore(): Promise<Content[]> {
+    const now = Date.now();
+    if (cachedAllContent && (now - cachedAllContentTime < CONTENT_CACHE_TTL)) {
+        return cachedAllContent;
+    }
+
     try {
         const contentQuery = query(
             collection(db, CONTENT_COLLECTION)
@@ -74,18 +108,40 @@ export async function getContentFromFirestore(): Promise<Content[]> {
 
         // Client-side sort to handle mixed data
         // Sort by releaseDate desc (newest first), fallback to createdAt
-        return content.sort((a, b) => {
+        const sorted = content.sort((a, b) => {
             const dateA = a.releaseDate || a.createdAt || '';
             const dateB = b.releaseDate || b.createdAt || '';
-            // Compare as strings works for ISO dates (YYYY-MM-DD), but releaseDate might be just YYYY or YYYY-MM-DD.
-            // Let's safe guard it.
             if (dateA === dateB) return 0;
             return dateB.localeCompare(dateA);
         });
+
+        cachedAllContent = sorted;
+        cachedAllContentTime = now;
+        return sorted;
     } catch (error) {
         console.error('Failed to fetch content from Firestore:', error);
-        return [];
+        return cachedAllContent || [];
     }
+}
+
+/**
+ * Fast lookup for a single content item by ID
+ */
+export async function getContentByIdFromFirestore(id: string): Promise<Content | null> {
+    if (cachedAllContent && (Date.now() - cachedAllContentTime < CONTENT_CACHE_TTL)) {
+        const found = cachedAllContent.find(c => String(c.id) === String(id));
+        if (found) return found;
+    }
+    try {
+        const docRef = doc(db, CONTENT_COLLECTION, String(id));
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+            return docSnap.data() as Content;
+        }
+    } catch (error) {
+        console.error(`Failed to get content ${id} from Firestore:`, error);
+    }
+    return null;
 }
 
 /**
@@ -97,6 +153,7 @@ export async function deleteContentFromFirestore(ids: string[]): Promise<{ succe
             deleteDoc(doc(db, CONTENT_COLLECTION, id))
         );
         await Promise.all(deletePromises);
+        invalidateContentCache();
         return { success: true };
     } catch (error) {
         console.error('Failed to delete content from Firestore:', error);
@@ -166,17 +223,25 @@ export type SiteConfig = {
 }
 
 export async function getSiteConfigFromFirestore(): Promise<SiteConfig> {
+    const now = Date.now();
+    if (cachedSiteConfig && (now - cachedSiteConfigTime < CONFIG_CACHE_TTL)) {
+        return cachedSiteConfig;
+    }
+
     try {
         const docRef = doc(db, CONFIG_COLLECTION, CONFIG_DOC);
         const docSnap = await import('firebase/firestore').then(mod => mod.getDoc(docRef));
 
         if (docSnap.exists()) {
-            return docSnap.data() as SiteConfig;
+            const configData = docSnap.data() as SiteConfig;
+            cachedSiteConfig = configData;
+            cachedSiteConfigTime = now;
+            return configData;
         }
         return {};
     } catch (error) {
         console.error('Failed to fetch config from Firestore:', error);
-        return {};
+        return cachedSiteConfig || {};
     }
 }
 
@@ -184,6 +249,7 @@ export async function saveSiteConfigToFirestore(config: SiteConfig): Promise<{ s
     try {
         const docRef = doc(db, CONFIG_COLLECTION, CONFIG_DOC);
         await setDoc(docRef, config, { merge: true });
+        invalidateConfigCache();
         return { success: true };
     } catch (error) {
         console.error('Failed to save config to Firestore:', error);
@@ -346,6 +412,7 @@ export async function addLiveChannel(channel: LiveChannel): Promise<{ success: b
         const docRef = doc(collection(db, LIVE_TV_COLLECTION));
         const finalChannel = { ...channel, id: docRef.id, createdAt: new Date().toISOString() };
         await setDoc(docRef, finalChannel);
+        invalidateLiveTvCache();
         return { success: true };
     } catch (error) {
         console.error('Error adding live channel:', error);
@@ -354,20 +421,34 @@ export async function addLiveChannel(channel: LiveChannel): Promise<{ success: b
 }
 
 export async function getLiveChannels(limitCount?: number): Promise<LiveChannel[]> {
+    const now = Date.now();
+    if (cachedLiveChannels && (now - cachedLiveChannelsTime < LIVE_TV_CACHE_TTL)) {
+        return limitCount ? cachedLiveChannels.slice(0, limitCount) : cachedLiveChannels;
+    }
+
     try {
         let q = query(collection(db, LIVE_TV_COLLECTION), orderBy('createdAt', 'desc'));
         if (limitCount) {
             q = query(q, limit(limitCount));
         }
         const snapshot = await getDocs(q);
-        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LiveChannel));
+        const channels = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LiveChannel));
+        if (!limitCount || limitCount >= 10) {
+            cachedLiveChannels = channels;
+            cachedLiveChannelsTime = now;
+        }
+        return channels;
     } catch (error) {
         console.error('Error fetching live channels:', error);
-        return [];
+        return cachedLiveChannels || [];
     }
 }
 
 export async function getLiveChannelById(id: string): Promise<LiveChannel | null> {
+    if (cachedLiveChannels && (Date.now() - cachedLiveChannelsTime < LIVE_TV_CACHE_TTL)) {
+        const found = cachedLiveChannels.find(c => c.id === id);
+        if (found) return found;
+    }
     try {
         const docRef = doc(db, LIVE_TV_COLLECTION, id);
         const docSnap = await getDoc(docRef);
@@ -389,6 +470,7 @@ export async function updateLiveChannel(id: string, data: Partial<LiveChannel>):
             Object.entries(data).filter(([_, v]) => v !== undefined)
         );
         await updateDoc(docRef, updateData);
+        invalidateLiveTvCache();
         return { success: true };
     } catch (error) {
         console.error('Error updating live channel:', error);
@@ -399,6 +481,7 @@ export async function updateLiveChannel(id: string, data: Partial<LiveChannel>):
 export async function deleteLiveChannel(id: string): Promise<{ success: boolean }> {
     try {
         await deleteDoc(doc(db, LIVE_TV_COLLECTION, id));
+        invalidateLiveTvCache();
         return { success: true };
     } catch (error) {
         console.error('Error deleting live channel:', error);
@@ -407,9 +490,14 @@ export async function deleteLiveChannel(id: string): Promise<{ success: boolean 
 }
 
 /**
- * Get content by slug (for SEO-friendly URLs)
+ * Get content by slug (for SEO-friendly URLs) with cache-first acceleration
  */
 export async function getContentBySlug(slug: string): Promise<Content | null> {
+    if (cachedAllContent && (Date.now() - cachedAllContentTime < CONTENT_CACHE_TTL)) {
+        const found = cachedAllContent.find(c => c.slug === slug);
+        if (found) return found;
+    }
+
     try {
         const contentCollectionRef = collection(db, CONTENT_COLLECTION);
         const q = query(contentCollectionRef, where('slug', '==', slug));
