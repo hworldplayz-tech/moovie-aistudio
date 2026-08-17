@@ -6,7 +6,7 @@ import { getBrowseContent, getManuallyAddedContent } from '@/lib/tmdb';
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
-import { Film, Tv, History, PlusCircle, Loader2, Settings, Trash2, RefreshCw, Search, Edit, Video, DollarSign, Send, CheckCircle, XCircle, Tag, Plus, Eye, BarChart3, Database } from 'lucide-react';
+import { Film, Tv, History, PlusCircle, Loader2, Settings, Trash2, RefreshCw, Search, Edit, Video, DollarSign, Send, CheckCircle, XCircle, Tag, Plus, Eye, BarChart3, Database, Globe } from 'lucide-react';
 import AdminViewsAnalytics from './admin-views-analytics';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ContentCard } from './content-card';
@@ -16,7 +16,7 @@ import { useToast } from '@/hooks/use-toast';
 import { ContentFormDialog } from './content-form-dialog';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
-import { getLogoText, updateLogoText, getPaginationLimit, updatePaginationLimit, syncContentMetadata, getSecureDownloadSettings, updateSecureDownloadSettings, migrateDownloadDomains, migrateDownloadLinks, previewLinkMigration, scanDatabaseDownloadLinks, getContentRequestsAction, updateContentRequestStatusAction, deleteContentRequestAction, addContent, getDownloadLinkPresets, updateDownloadLinkPresets, toggleFilmyzillaLinksAction } from '@/app/admin/actions';
+import { getLogoText, updateLogoText, getPaginationLimit, updatePaginationLimit, syncContentMetadata, getSecureDownloadSettings, updateSecureDownloadSettings, migrateDownloadDomains, migrateDownloadLinks, previewLinkMigration, scanDatabaseDownloadLinks, getContentRequestsAction, updateContentRequestStatusAction, deleteContentRequestAction, addContent, getDownloadLinkPresets, updateDownloadLinkPresets, toggleFilmyzillaLinksAction, getSiteLanguages, updateSiteLanguages, resetSiteLanguages } from '@/app/admin/actions';
 import {
   getContentFromFirestore,
   addContentToFirestore,
@@ -29,7 +29,8 @@ import {
   addLiveChannel,
   getLiveChannels,
   deleteLiveChannel,
-  updateLiveChannel
+  updateLiveChannel,
+  DEFAULT_SITE_LANGUAGES
 } from '@/lib/firestore';
 import { deleteContent } from '@/ai/flows/delete-content';
 import {
@@ -181,6 +182,11 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
   const [newPresetInput, setNewPresetInput] = useState('');
   const [isSavingPresets, setIsSavingPresets] = useState(false);
 
+  // Site Languages State
+  const [siteLanguages, setSiteLanguages] = useState<string[]>([]);
+  const [newLanguageInput, setNewLanguageInput] = useState('');
+  const [isSavingLanguages, setIsSavingLanguages] = useState(false);
+
   const filteredContent = recentlyAdded.filter(item =>
     (item.title || '').toLowerCase().includes((searchTerm || '').toLowerCase())
   );
@@ -188,12 +194,13 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
   const fetchDashboardData = async () => {
     setLoadingStats(true);
     try {
-      const [localContent, currentLogoText, currentLimit, secureSettings, presets] = await Promise.all([
+      const [localContent, currentLogoText, currentLimit, secureSettings, presets, langs] = await Promise.all([
         getManuallyAddedContent(),
         getLogoText(),
         getPaginationLimit(),
         getSecureDownloadSettings(),
-        getDownloadLinkPresets()
+        getDownloadLinkPresets(),
+        getSiteLanguages()
       ]);
 
       setLogoText(currentLogoText);
@@ -203,6 +210,7 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
       setGlobalDownloadsEnabled(secureSettings.globalEnabled);
       setFilmyzillaLinksEnabled(secureSettings.filmyzillaLinksEnabled !== undefined ? secureSettings.filmyzillaLinksEnabled : true);
       setLinkPresets(presets);
+      setSiteLanguages(langs);
       // Fetch Site Config for other settings
       const siteConfig = await getSiteConfigFromFirestore();
       setShowLiveTvCarousel(siteConfig.showLiveTvCarousel !== undefined ? siteConfig.showLiveTvCarousel : true);
@@ -651,6 +659,65 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
       toast({ variant: 'destructive', title: 'Error', description: 'Failed to reset presets.' });
     } finally {
       setIsSavingPresets(false);
+    }
+  };
+
+  const handleAddLanguage = async () => {
+    const clean = newLanguageInput.trim();
+    if (!clean) return;
+    if (siteLanguages.some(l => l.toLowerCase() === clean.toLowerCase())) {
+      toast({ variant: 'destructive', title: 'Language Exists', description: `"${clean}" is already in the languages list.` });
+      return;
+    }
+    const updated = [...siteLanguages, clean];
+    setSiteLanguages(updated);
+    setNewLanguageInput('');
+    setIsSavingLanguages(true);
+    try {
+      const res = await updateSiteLanguages(updated);
+      if (res.success) {
+        toast({ title: 'Language Added!', description: `"${clean}" added to site languages.` });
+      } else {
+        toast({ variant: 'destructive', title: 'Error', description: res.error || 'Failed to save language.' });
+      }
+    } catch (err) {
+      toast({ variant: 'destructive', title: 'Error', description: 'Failed to update languages.' });
+    } finally {
+      setIsSavingLanguages(false);
+    }
+  };
+
+  const handleRemoveLanguage = async (indexToRemove: number) => {
+    const langToRemove = siteLanguages[indexToRemove];
+    const updated = siteLanguages.filter((_, idx) => idx !== indexToRemove);
+    setSiteLanguages(updated);
+    setIsSavingLanguages(true);
+    try {
+      const res = await updateSiteLanguages(updated);
+      if (res.success) {
+        toast({ title: 'Language Removed', description: `"${langToRemove}" has been removed.` });
+      } else {
+        toast({ variant: 'destructive', title: 'Error', description: res.error || 'Failed to remove language.' });
+      }
+    } catch (err) {
+      toast({ variant: 'destructive', title: 'Error', description: 'Failed to remove language.' });
+    } finally {
+      setIsSavingLanguages(false);
+    }
+  };
+
+  const handleResetLanguages = async () => {
+    setSiteLanguages(DEFAULT_SITE_LANGUAGES);
+    setIsSavingLanguages(true);
+    try {
+      const res = await resetSiteLanguages();
+      if (res.success) {
+        toast({ title: 'Languages Reset to Defaults!' });
+      }
+    } catch (err) {
+      toast({ variant: 'destructive', title: 'Error', description: 'Failed to reset languages.' });
+    } finally {
+      setIsSavingLanguages(false);
     }
   };
 
@@ -1168,6 +1235,86 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
                       ))}
                       {linkPresets.length === 0 && (
                         <p className="text-xs text-muted-foreground italic">No presets saved yet. Add some above or click Reset Defaults!</p>
+                      )}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Site Languages Manager Card */}
+              <Card className="mb-8 border-sky-200 bg-sky-50/30 dark:bg-sky-950/10">
+                <CardHeader>
+                  <CardTitle className="flex items-center text-sky-950 dark:text-sky-300">
+                    <Globe className="mr-2 h-6 w-6 text-sky-600" />
+                    Site Languages Manager (Add / Delete Languages)
+                  </CardTitle>
+                  <CardDescription className="text-sky-900/80 dark:text-sky-300/80">
+                    Manage the languages available across your site. Any language you add here will immediately appear in the <code className="bg-sky-100 dark:bg-sky-900/60 px-1 py-0.5 rounded font-mono text-xs">Add/Edit Content</code> dialog, <code className="bg-sky-100 dark:bg-sky-900/60 px-1 py-0.5 rounded font-mono text-xs">Sidebar Navigation</code>, and <code className="bg-sky-100 dark:bg-sky-900/60 px-1 py-0.5 rounded font-mono text-xs">Header Filter</code>!
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {/* Add Language Input */}
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Type new language (e.g. Tamil, Telugu, Bhojpuri, Russian, Bengali)..."
+                      value={newLanguageInput}
+                      onChange={(e) => setNewLanguageInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleAddLanguage();
+                        }
+                      }}
+                      className="text-xs font-medium border-sky-200"
+                    />
+                    <Button
+                      type="button"
+                      onClick={handleAddLanguage}
+                      disabled={isSavingLanguages || !newLanguageInput.trim()}
+                      className="bg-sky-600 hover:bg-sky-700 text-white shrink-0"
+                    >
+                      {isSavingLanguages ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4 mr-1" />}
+                      Add Language
+                    </Button>
+                  </div>
+
+                  {/* Active Languages Grid */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold text-sky-950 dark:text-sky-300">
+                        Active Languages ({siteLanguages.length}):
+                      </span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleResetLanguages}
+                        disabled={isSavingLanguages}
+                        className="text-[11px] text-muted-foreground hover:text-sky-600 h-6 px-2"
+                      >
+                        Reset Defaults
+                      </Button>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2 p-3 rounded-lg border border-sky-200/80 bg-background/80 min-h-[60px] items-center">
+                      {siteLanguages.map((lang, idx) => (
+                        <div
+                          key={idx}
+                          className="group flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-sky-100/80 text-sky-950 dark:bg-sky-900/40 dark:text-sky-200 border border-sky-200 dark:border-sky-800 transition-all hover:border-sky-400 shadow-sm"
+                        >
+                          <span>{lang}</span>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveLanguage(idx)}
+                            className="text-sky-400 hover:text-destructive p-0.5 rounded-full transition-colors"
+                            title={`Delete ${lang}`}
+                          >
+                            <XCircle className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                      {siteLanguages.length === 0 && (
+                        <p className="text-xs text-muted-foreground italic">No languages configured. Add one above or click Reset Defaults!</p>
                       )}
                     </div>
                   </div>

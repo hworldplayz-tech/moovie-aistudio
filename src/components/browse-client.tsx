@@ -100,9 +100,21 @@ export default function BrowseClient({
                         const airYear = item.lastAirDate ? item.lastAirDate.split('-')[0] : '';
                         if (releaseYear !== year && airYear !== year) return false;
                     }
-                    if (region && item.country !== region) return false;
+                    if (region) {
+                        const regionLower = region.toLowerCase();
+                        const matchLang = item.languages?.some(l => 
+                            l.toLowerCase() === regionLower || 
+                            l.toLowerCase().includes(regionLower)
+                        );
+                        const matchCountry = (item.country || '').toLowerCase() === regionLower;
+                        const matchOriginalLang = (item.originalLanguage || '').toLowerCase() === regionLower;
+                        if (!matchLang && !matchCountry && !matchOriginalLang) return false;
+                    }
                     if (q && !(item.title || '').toLowerCase().includes(q.toLowerCase())) return false;
-                    if (hindiDubbed && !item.isHindiDubbed) return false;
+                    if (hindiDubbed) {
+                        const isHindi = item.isHindiDubbed || item.languages?.some(l => l.toLowerCase().includes('hindi'));
+                        if (!isHindi) return false;
+                    }
                     return true;
                 }).map(item => ({ ...item, inLibrary: true }));
 

@@ -1,6 +1,7 @@
 
 'use client';
 
+import { useState, useEffect } from 'react';
 import {
   SidebarMenu,
   SidebarMenuItem,
@@ -12,15 +13,8 @@ import Link from 'next/link';
 import { usePathname, useSearchParams, useRouter } from 'next/navigation';
 import { SidebarMenuSub, SidebarMenuSubButton, SidebarMenuSubItem } from '@/components/ui/sidebar';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuLabel,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+import { getSiteLanguages } from '@/app/admin/actions';
+import { DEFAULT_SITE_LANGUAGES } from '@/lib/firestore';
 
 const navItems = [
   { href: '/', label: 'Browse All', icon: Home, type: null, genre: null, region: null },
@@ -37,29 +31,21 @@ const categories = [
   { href: '/?genre=27', label: 'Horror', genre: '27' },
 ];
 
-const languages = [
-  { value: 'US', label: 'English (US)' },
-  { value: 'IN', label: 'Hindi (India)' },
-  { value: 'PK', label: 'Urdu (Pakistan)' },
-  { value: 'GB', label: 'English (UK)' },
-  { value: 'PB', label: 'Punjabi' },
-  { value: 'KR', label: 'Korean' },
-  { value: 'CN', label: 'Chinese' },
-  { value: 'ML', label: 'Malayalam' },
-  { value: 'TR', label: 'Turkish' },
-  { value: 'TH', label: 'Thai' },
-  { value: 'JA', label: 'Japanese' },
-  { value: 'ES', label: 'Spanish' },
-  { value: 'FR', label: 'French' },
-  { value: 'DE', label: 'German' },
-  { value: 'IT', label: 'Italian' },
-];
-
 export function SidebarNav() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const router = useRouter();
   const { isMobile, setOpenMobile } = useSidebar();
+
+  const [availableLanguages, setAvailableLanguages] = useState<string[]>(DEFAULT_SITE_LANGUAGES);
+
+  useEffect(() => {
+    getSiteLanguages().then(langs => {
+      if (langs && langs.length > 0) {
+        setAvailableLanguages(langs);
+      }
+    }).catch(err => console.error('Failed to load languages in sidebar:', err));
+  }, []);
 
   const currentType = searchParams?.get('type');
   const currentGenre = searchParams?.get('genre');
@@ -91,7 +77,7 @@ export function SidebarNav() {
     if (value === '') {
       newParams.delete('region');
       newParams.delete('hindi_dubbed');
-    } else if (value === 'hindi_dubbed') {
+    } else if (value.toLowerCase() === 'hindi_dubbed' || value.toLowerCase() === 'hindi dubbed') {
       newParams.set('hindi_dubbed', 'true');
       newParams.delete('region');
     } else {
@@ -144,26 +130,21 @@ export function SidebarNav() {
                   <span>All Languages</span>
                 </SidebarMenuSubButton>
               </SidebarMenuSubItem>
-              <SidebarMenuSubItem>
-                <SidebarMenuSubButton
-                  isActive={currentLanguageValue === "hindi_dubbed"}
-                  onClick={() => handleLanguageChange("hindi_dubbed")}
-                  className="cursor-pointer"
-                >
-                  <span>Hindi Dubbed</span>
-                </SidebarMenuSubButton>
-              </SidebarMenuSubItem>
-              {languages.map((lang) => (
-                <SidebarMenuSubItem key={lang.value}>
-                  <SidebarMenuSubButton
-                    isActive={currentLanguageValue === lang.value}
-                    onClick={() => handleLanguageChange(lang.value)}
-                    className="cursor-pointer"
-                  >
-                    <span>{lang.label}</span>
-                  </SidebarMenuSubButton>
-                </SidebarMenuSubItem>
-              ))}
+              {availableLanguages.map((lang) => {
+                const isDubbed = lang.toLowerCase() === 'hindi dubbed';
+                const isSelected = isDubbed ? isHindiDubbed : currentRegion?.toLowerCase() === lang.toLowerCase();
+                return (
+                  <SidebarMenuSubItem key={lang}>
+                    <SidebarMenuSubButton
+                      isActive={isSelected}
+                      onClick={() => handleLanguageChange(lang)}
+                      className="cursor-pointer"
+                    >
+                      <span>{lang}</span>
+                    </SidebarMenuSubButton>
+                  </SidebarMenuSubItem>
+                );
+              })}
             </SidebarMenuSub>
           </CollapsibleContent>
         </SidebarMenuItem>
@@ -185,7 +166,6 @@ export function SidebarNav() {
           </SidebarMenuButton>
         </SidebarMenuItem>
       ))}
-
     </SidebarMenu>
   );
 }

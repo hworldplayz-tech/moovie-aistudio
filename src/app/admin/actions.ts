@@ -1,7 +1,7 @@
 
 'use server';
 
-import { getContentFromFirestore, addContentToFirestore, getSiteConfigFromFirestore, saveSiteConfigToFirestore, createPartnerRequest, getSystemUser, DEFAULT_LINK_PRESETS } from '@/lib/firestore';
+import { getContentFromFirestore, addContentToFirestore, getSiteConfigFromFirestore, saveSiteConfigToFirestore, createPartnerRequest, getSystemUser, DEFAULT_LINK_PRESETS, DEFAULT_SITE_LANGUAGES } from '@/lib/firestore';
 import { getContentById } from '@/lib/tmdb';
 import type { PartnerRequest, SystemUser } from '@/lib/definitions';
 
@@ -149,6 +149,57 @@ export async function updateDownloadLinkPresets(presets: string[]): Promise<{ su
   } catch (error) {
     console.error('Failed to update download link presets:', error);
     return { success: false, error: 'Failed to save presets to database.' };
+  }
+}
+
+export async function getSiteLanguages(): Promise<string[]> {
+  try {
+    const config = await getSiteConfigFromFirestore();
+    if (config.customLanguages && Array.isArray(config.customLanguages) && config.customLanguages.length > 0) {
+      return config.customLanguages;
+    }
+    return DEFAULT_SITE_LANGUAGES;
+  } catch (error) {
+    console.error('Failed to get site languages:', error);
+    return DEFAULT_SITE_LANGUAGES;
+  }
+}
+
+export async function updateSiteLanguages(languages: string[]): Promise<{ success: boolean; error?: string }> {
+  if (!Array.isArray(languages)) {
+    return { success: false, error: 'Languages must be an array.' };
+  }
+  try {
+    const cleanLanguages = languages
+      .map(l => typeof l === 'string' ? l.trim() : '')
+      .filter(l => l.length > 0);
+
+    // Deduplicate case-insensitively while preserving the casing
+    const seen = new Set<string>();
+    const uniqueLanguages: string[] = [];
+    for (const lang of cleanLanguages) {
+      const lower = lang.toLowerCase();
+      if (!seen.has(lower)) {
+        seen.add(lower);
+        uniqueLanguages.push(lang);
+      }
+    }
+
+    await saveSiteConfigToFirestore({ customLanguages: uniqueLanguages });
+    return { success: true };
+  } catch (error: any) {
+    console.error('Failed to update site languages:', error);
+    return { success: false, error: error?.message || 'Failed to save languages to database.' };
+  }
+}
+
+export async function resetSiteLanguages(): Promise<{ success: boolean }> {
+  try {
+    await saveSiteConfigToFirestore({ customLanguages: DEFAULT_SITE_LANGUAGES });
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to reset site languages:', error);
+    return { success: false };
   }
 }
 

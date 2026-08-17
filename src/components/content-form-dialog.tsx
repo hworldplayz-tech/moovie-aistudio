@@ -26,8 +26,8 @@ import { getContentById } from '@/lib/tmdb';
 import type { Content, DownloadLink } from '@/lib/definitions';
 import { updateContent } from '@/ai/flows/update-content';
 import { ContentCard } from './content-card';
-import { getDownloadLinkPresets } from '@/app/admin/actions';
-import { DEFAULT_LINK_PRESETS } from '@/lib/firestore';
+import { getDownloadLinkPresets, getSiteLanguages } from '@/app/admin/actions';
+import { DEFAULT_LINK_PRESETS, DEFAULT_SITE_LANGUAGES } from '@/lib/firestore';
 
 type ContentFormDialogProps = {
   children: React.ReactNode;
@@ -52,6 +52,7 @@ export function ContentFormDialog({ children, contentToEdit, onSave, currentUser
   const [downloadLinks, setDownloadLinks] = useState<DownloadLink[]>([]);
   // const [isHindiDubbed, setIsHindiDubbed] = useState(contentToEdit?.isHindiDubbed || false); // Deprecated state, mapped to languages
   const [selectedLanguages, setSelectedLanguages] = useState<string[]>([]);
+  const [availableLanguages, setAvailableLanguages] = useState<string[]>(DEFAULT_SITE_LANGUAGES);
   const [selectedQuality, setSelectedQuality] = useState<string[]>([]);
   const [customTags, setCustomTags] = useState(contentToEdit?.customTags?.join(', ') || '');
 
@@ -83,8 +84,16 @@ export function ContentFormDialog({ children, contentToEdit, onSave, currentUser
           }
         }
       }).catch(err => console.error('Failed to load presets:', err));
+
+      getSiteLanguages().then(langs => {
+        if (langs && langs.length > 0) {
+          // Merge with any languages already selected on the edited content
+          const allLangs = Array.from(new Set([...langs, ...(contentToEdit?.languages || [])]));
+          setAvailableLanguages(allLangs);
+        }
+      }).catch(err => console.error('Failed to load site languages:', err));
     }
-  }, [isOpen]);
+  }, [isOpen, contentToEdit]);
 
   useEffect(() => {
     // When the dialog is opened for editing, populate the form
@@ -520,7 +529,7 @@ export function ContentFormDialog({ children, contentToEdit, onSave, currentUser
                   <div>
                     <Label className="mb-2 block font-medium">Languages</Label>
                     <div className="flex flex-wrap gap-4">
-                      {['Hindi Dubbed', 'English', 'Urdu Dubbed', 'Multi Audio', 'Punjabi', 'Korean', 'Chinese', 'Malayalam', 'Turkish', 'Thai', 'Japanese', 'Spanish', 'French', 'German', 'Italian'].map((lang) => (
+                      {availableLanguages.map((lang) => (
                         <div key={lang} className="flex items-center space-x-2">
                           <Checkbox
                             id={`lang-${lang}`}
@@ -534,7 +543,7 @@ export function ContentFormDialog({ children, contentToEdit, onSave, currentUser
                             }}
                             disabled={isLoading}
                           />
-                          <Label htmlFor={`lang-${lang}`}>{lang}</Label>
+                          <Label htmlFor={`lang-${lang}`} className="cursor-pointer">{lang}</Label>
                         </div>
                       ))}
                     </div>

@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import type { Metadata, Viewport } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
@@ -9,6 +10,7 @@ import { ScrollToTop } from '@/components/scroll-to-top';
 import { getAdSettings } from '@/lib/firestore';
 import GlobalHeaderScripts from '@/components/global-header-scripts';
 import SocialBarAd from '@/components/ads/social-bar-ad';
+import TopLoadingBar from '@/components/top-loading-bar';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
 
@@ -58,6 +60,9 @@ export default async function RootLayout({
           disableTransitionOnChange
         >
           <AuthProvider>
+            <Suspense fallback={null}>
+              <TopLoadingBar />
+            </Suspense>
             <MainLayout>{children}</MainLayout>
             <SocialBarAd />
             <GlobalHeaderScripts scripts={settings.headerScripts} />

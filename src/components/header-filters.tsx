@@ -14,18 +14,13 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Film, Globe, Calendar, ChevronDown } from 'lucide-react';
 import { getAllGenres } from '@/lib/tmdb';
+import { getSiteLanguages } from '@/app/admin/actions';
+import { DEFAULT_SITE_LANGUAGES } from '@/lib/firestore';
 
 type Genre = {
   id: number | string;
   name: string;
 };
-
-const languages = [
-  { value: 'US', label: 'English (US)' },
-  { value: 'IN', label: 'Hindi (India)' },
-  { value: 'PK', label: 'Urdu (Pakistan)' },
-  { value: 'GB', label: 'English (UK)' },
-];
 
 const years = Array.from({ length: 45 }, (_, i) => new Date().getFullYear() - i).map(String);
 
@@ -89,14 +84,23 @@ export function HeaderFilters() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [genres, setGenres] = useState<Genre[]>([]);
+  const [availableLanguages, setAvailableLanguages] = useState<string[]>(DEFAULT_SITE_LANGUAGES);
 
   useEffect(() => {
     getAllGenres().then(setGenres);
+    getSiteLanguages().then(langs => {
+      if (langs && langs.length > 0) {
+        setAvailableLanguages(langs);
+      }
+    }).catch(err => console.error('Failed to load languages in header filters:', err));
   }, []);
 
   const genreOptions = genres.map(g => ({ value: g.name, label: g.name }));
   const yearOptions = years.map(y => ({ value: y, label: y }));
-  const languageOptions = languages;
+  const languageOptions = availableLanguages.map(l => ({
+    value: l.toLowerCase() === 'hindi dubbed' ? 'hindi_dubbed' : l,
+    label: l,
+  }));
 
   const currentGenre = searchParams?.get('genre') || '';
   const currentYear = searchParams?.get('year') || '';

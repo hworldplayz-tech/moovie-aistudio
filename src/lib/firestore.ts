@@ -120,6 +120,32 @@ export const DEFAULT_LINK_PRESETS = [
     'Download HD (Fast Server)',
 ];
 
+export const DEFAULT_SITE_LANGUAGES = [
+    'Hindi Dubbed',
+    'English',
+    'Urdu Dubbed',
+    'Multi Audio',
+    'Punjabi',
+    'Tamil',
+    'Telugu',
+    'Malayalam',
+    'Kannada',
+    'Bengali',
+    'Marathi',
+    'Korean',
+    'Chinese',
+    'Japanese',
+    'Turkish',
+    'Thai',
+    'Spanish',
+    'French',
+    'German',
+    'Italian',
+    'Russian',
+    'Arabic',
+    'Portuguese',
+];
+
 export type SiteConfig = {
     logoText?: string;
     paginationLimit?: number;
@@ -135,6 +161,7 @@ export type SiteConfig = {
     relatedItemsCount?: number;
     relatedLayout?: 'grid' | 'slider';
     downloadLinkPresets?: string[];
+    customLanguages?: string[];
     showPublicViewsCount?: boolean;
 }
 
