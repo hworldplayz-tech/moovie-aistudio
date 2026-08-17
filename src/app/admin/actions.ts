@@ -204,7 +204,9 @@ export async function resetSiteLanguages(): Promise<{ success: boolean }> {
 }
 
 export async function getManuallyAddedContent() {
-  return await getContentFromFirestore();
+  const { invalidateContentCache, getContentFromFirestore } = await import('@/lib/firestore');
+  invalidateContentCache();
+  return await getContentFromFirestore(true);
 }
 
 export async function addContent(tmdbId: string, contentType: 'movie' | 'tv') {
@@ -215,7 +217,7 @@ export async function addContent(tmdbId: string, contentType: 'movie' | 'tv') {
     }
 
     const result = await addContentToFirestore(content);
-    return result;
+    return { ...result, content };
   } catch (error) {
     console.error('Failed to add content:', error);
     return { success: false, error: error instanceof Error ? error.message : 'Failed to add content.' };
@@ -933,6 +935,36 @@ export async function updatePublicViewsSettingAction(enabled: boolean) {
     return { success: false };
   }
 }
+
+export async function getHeaderScriptsAction(): Promise<string> {
+  try {
+    const { getSiteConfigFromFirestore, getAdSettings } = await import('@/lib/firestore');
+    const [config, ads] = await Promise.all([
+      getSiteConfigFromFirestore(),
+      getAdSettings()
+    ]);
+    return config.headerScripts || ads.headerScripts || '';
+  } catch (error) {
+    console.error('getHeaderScriptsAction error:', error);
+    return '';
+  }
+}
+
+export async function updateHeaderScriptsAction(scripts: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { saveSiteConfigToFirestore, updateAdSettings, getAdSettings } = await import('@/lib/firestore');
+    const currentAds = await getAdSettings();
+    await Promise.all([
+      saveSiteConfigToFirestore({ headerScripts: scripts }),
+      updateAdSettings({ ...currentAds, headerScripts: scripts })
+    ]);
+    return { success: true };
+  } catch (error: any) {
+    console.error('updateHeaderScriptsAction error:', error);
+    return { success: false, error: error?.message || 'Failed to save header scripts' };
+  }
+}
+
 
 
 

@@ -2,11 +2,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { getBrowseContent, getManuallyAddedContent } from '@/lib/tmdb';
-
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
-import { Film, Tv, History, PlusCircle, Loader2, Settings, Trash2, RefreshCw, Search, Edit, Video, DollarSign, Send, CheckCircle, XCircle, Tag, Plus, Eye, BarChart3, Database, Globe } from 'lucide-react';
+import { Film, Tv, History, PlusCircle, Loader2, Settings, Trash2, RefreshCw, Search, Edit, Video, DollarSign, Send, CheckCircle, XCircle, Tag, Plus, Eye, BarChart3, Database, Globe, Code } from 'lucide-react';
 import AdminViewsAnalytics from './admin-views-analytics';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ContentCard } from './content-card';
@@ -15,8 +13,9 @@ import { Button } from './ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { ContentFormDialog } from './content-form-dialog';
 import { Input } from './ui/input';
+import { Textarea } from './ui/textarea';
 import { Label } from './ui/label';
-import { getLogoText, updateLogoText, getPaginationLimit, updatePaginationLimit, syncContentMetadata, getSecureDownloadSettings, updateSecureDownloadSettings, migrateDownloadDomains, migrateDownloadLinks, previewLinkMigration, scanDatabaseDownloadLinks, getContentRequestsAction, updateContentRequestStatusAction, deleteContentRequestAction, addContent, getDownloadLinkPresets, updateDownloadLinkPresets, toggleFilmyzillaLinksAction, getSiteLanguages, updateSiteLanguages, resetSiteLanguages } from '@/app/admin/actions';
+import { getManuallyAddedContent, getLogoText, updateLogoText, getPaginationLimit, updatePaginationLimit, syncContentMetadata, getSecureDownloadSettings, updateSecureDownloadSettings, migrateDownloadDomains, migrateDownloadLinks, previewLinkMigration, scanDatabaseDownloadLinks, getContentRequestsAction, updateContentRequestStatusAction, deleteContentRequestAction, addContent, getDownloadLinkPresets, updateDownloadLinkPresets, toggleFilmyzillaLinksAction, getSiteLanguages, updateSiteLanguages, resetSiteLanguages, getHeaderScriptsAction, updateHeaderScriptsAction } from '@/app/admin/actions';
 import {
   getContentFromFirestore,
   addContentToFirestore,
@@ -123,6 +122,7 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
   const [featuredLayout, setFeaturedLayout] = useState<'slider' | 'grid' | 'list'>('slider');
   const [relatedItemsCount, setRelatedItemsCount] = useState<number>(6);
   const [relatedLayout, setRelatedLayout] = useState<'grid' | 'slider'>('grid');
+  const [headerScripts, setHeaderScripts] = useState('');
   const [isSavingSettings, setIsSavingSettings] = useState(false);
 
   // Domain & Link Migration Tool State
@@ -220,6 +220,7 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
       setFeaturedLayout(siteConfig.featuredLayout || 'slider');
       setRelatedItemsCount(siteConfig.relatedItemsCount || 6);
       setRelatedLayout(siteConfig.relatedLayout || 'grid');
+      setHeaderScripts(siteConfig.headerScripts || '');
 
 
       let myContent = localContent;
@@ -481,21 +482,25 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
         updateSecureDownloadSettings(secureDownloadsEnabled, downloadDelay, globalDownloadsEnabled, filmyzillaLinksEnabled)
       ]);
 
-      await saveSiteConfigToFirestore({
-        secureDownloadsEnabled,
-        downloadButtonDelay: downloadDelay,
-        globalDownloadsEnabled,
-        filmyzillaLinksEnabled,
-        showLiveTvCarousel,
-        logoText,
-        paginationLimit,
-        siteTitle,
-        titleSuffix,
-        showFeaturedSection,
-        featuredLayout,
-        relatedItemsCount,
-        relatedLayout
-      });
+      await Promise.all([
+        saveSiteConfigToFirestore({
+          secureDownloadsEnabled,
+          downloadButtonDelay: downloadDelay,
+          globalDownloadsEnabled,
+          filmyzillaLinksEnabled,
+          showLiveTvCarousel,
+          logoText,
+          paginationLimit,
+          siteTitle,
+          titleSuffix,
+          showFeaturedSection,
+          featuredLayout,
+          relatedItemsCount,
+          relatedLayout,
+          headerScripts
+        }),
+        updateHeaderScriptsAction(headerScripts)
+      ]);
 
       if (logoResult.success && limitResult.success && secureResult.success) {
         toast({ title: "Success", description: "Site settings updated successfully." });
@@ -759,11 +764,35 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
       const res = await addContent(req.tmdbId, req.type);
       if (res.success) {
         await updateContentRequestStatusAction(req.tmdbId, 'fulfilled');
+
+        // Immediately update content request status locally in UI
+        setContentRequests(prev => prev.map(r => r.tmdbId === req.tmdbId ? { ...r, status: 'fulfilled' } : r));
+
+        // Immediately update recentlyAdded state in real-time with full movie data
+        const addedItem: Content = (res as any).content || {
+          id: req.tmdbId,
+          title: req.title,
+          posterPath: req.posterPath,
+          backdropPath: req.backdropPath,
+          type: req.type,
+          releaseDate: req.releaseDate || 'N/A',
+          rating: 0,
+          description: '',
+          genres: [],
+          createdAt: new Date().toISOString(),
+        };
+
+        setRecentlyAdded(prev => {
+          const filtered = prev.filter(c => String(c.id) !== String(req.tmdbId));
+          return [addedItem, ...filtered];
+        });
+
         toast({
           title: 'Import Successful!',
-          description: `"${req.title}" has been added to your site library.`,
+          description: `"${req.title || addedItem.title}" has been added to your site library.`,
         });
-        fetchDashboardData();
+
+        await fetchDashboardData();
       } else {
         toast({
           title: 'Import Failed',
@@ -1138,7 +1167,33 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
                         />
                       </div>
                     )}
-                    <Button onClick={handleSaveSettings} disabled={isSavingSettings}>
+
+                    <div className="space-y-3 pt-4 border-t">
+                      <div className="space-y-1">
+                        <Label htmlFor="header-scripts-input" className="text-base font-semibold flex items-center gap-2">
+                          <Code className="h-4 w-4 text-primary" />
+                          Header Scripts &amp; Verification Tags (&lt;head&gt;)
+                        </Label>
+                        <p className="text-sm text-muted-foreground">
+                          Add custom HTML verification tags (e.g. Google Search Console &lt;meta&gt; tag), Google Analytics, Google Tag Manager, or ad network scripts. These are saved to your site configuration and automatically rendered in the &lt;head&gt; section on every page.
+                        </p>
+                      </div>
+                      <Textarea
+                        id="header-scripts-input"
+                        placeholder={'<!-- Google Search Console Verification -->\n<meta name="google-site-verification" content="your_verification_code_here" />\n\n<!-- Google Analytics / Tag Manager -->\n<script async src="https://www.googletagmanager.com/gtag/js?id=G-XXXXXXXX"></script>'}
+                        className="font-mono text-xs h-36 bg-background/50 border-input"
+                        value={headerScripts}
+                        onChange={(e) => setHeaderScripts(e.target.value)}
+                        disabled={isSavingSettings}
+                      />
+                      <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+                        <span className="bg-muted/70 px-2 py-1 rounded border">Google Search Console Verification</span>
+                        <span className="bg-muted/70 px-2 py-1 rounded border">Ad Networks &amp; Monetization Scripts</span>
+                        <span className="bg-muted/70 px-2 py-1 rounded border">Google Analytics (gtag.js)</span>
+                      </div>
+                    </div>
+
+                    <Button onClick={handleSaveSettings} disabled={isSavingSettings} className="mt-4">
                       {isSavingSettings && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                       Save Changes
                     </Button>

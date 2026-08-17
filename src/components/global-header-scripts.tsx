@@ -1,22 +1,29 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { executeAdScript } from '@/components/ads/ad-container';
 
 export default function GlobalHeaderScripts({ scripts }: { scripts?: string }) {
+    const containerRef = useRef<HTMLDivElement>(null);
+
     useEffect(() => {
-        if (scripts && typeof document !== 'undefined') {
-            const containerId = 'global-header-scripts-container';
-            let container = document.getElementById(containerId);
-            if (!container) {
-                container = document.createElement('div');
-                container.id = containerId;
-                container.style.display = 'none';
-                document.body.appendChild(container);
-            }
-            executeAdScript(container, scripts);
+        if (!containerRef.current || !scripts) return;
+        try {
+            executeAdScript(containerRef.current, scripts);
+        } catch (err) {
+            console.error('Error executing global header scripts:', err);
         }
     }, [scripts]);
 
-    return null;
+    if (!scripts) return null;
+
+    return (
+        <div
+            ref={containerRef}
+            id="global-header-scripts-container"
+            style={{ display: 'none' }}
+            aria-hidden="true"
+        />
+    );
 }
+

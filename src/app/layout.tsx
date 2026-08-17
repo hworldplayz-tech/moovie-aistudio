@@ -7,7 +7,7 @@ import { AuthProvider } from '@/providers/auth-provider';
 import MainLayout from '@/components/main-layout';
 import { ThemeProvider } from '@/providers/theme-provider';
 import { ScrollToTop } from '@/components/scroll-to-top';
-import { getAdSettings } from '@/lib/firestore';
+import { getAdSettings, getSiteConfigFromFirestore } from '@/lib/firestore';
 import GlobalHeaderScripts from '@/components/global-header-scripts';
 import SocialBarAd from '@/components/ads/social-bar-ad';
 import TopLoadingBar from '@/components/top-loading-bar';
@@ -23,7 +23,45 @@ export const viewport: Viewport = {
 };
 
 export async function generateMetadata(): Promise<Metadata> {
-  // Using hardcoded title as requested by user
+  const [settings, siteConfig] = await Promise.all([
+    getAdSettings(),
+    getSiteConfigFromFirestore()
+  ]);
+
+  const headerScripts = siteConfig.headerScripts || settings.headerScripts || '';
+
+  // Extract google site verification and custom meta tags safely for Next.js metadata
+  const metaOther: Record<string, string> = {};
+  let googleVerification: string | undefined = undefined;
+
+  if (headerScripts) {
+    // 1. Check meta tags: <meta name="..." content="..." />
+    const metaRegex = /<meta\s+([^>]+)>/gi;
+    let match: RegExpExecArray | null;
+    while ((match = metaRegex.exec(headerScripts)) !== null) {
+      const attrString = match[1];
+      const nameMatch = attrString.match(/(?:name|property)=["']([^"']+)["']/i);
+      const contentMatch = attrString.match(/content=["']([^"']+)["']/i);
+      if (nameMatch && contentMatch) {
+        const name = nameMatch[1];
+        const content = contentMatch[1];
+        if (name.toLowerCase() === 'google-site-verification') {
+          googleVerification = content;
+        } else {
+          metaOther[name] = content;
+        }
+      }
+    }
+
+    // 2. Check if user provided raw string like "google-site-verification=xxxx"
+    if (!googleVerification) {
+      const plainMatch = headerScripts.match(/google-site-verification[=:\s]+([a-zA-Z0-9_-]+)/i);
+      if (plainMatch) {
+        googleVerification = plainMatch[1];
+      }
+    }
+  }
+
   return {
     title: SITE_TITLE,
     description: 'Download and stream free HD Movies, Web Series, Dual Audio Hindi Dubbed Movies in 480p, 720p & 1080p with fast direct links.',
@@ -39,6 +77,10 @@ export async function generateMetadata(): Promise<Metadata> {
       title: SITE_TITLE,
       description: 'Download and stream free HD Movies, Web Series, Dual Audio Hindi Dubbed Movies in 480p, 720p & 1080p with fast direct links.',
     },
+    verification: googleVerification ? {
+      google: googleVerification
+    } : undefined,
+    other: Object.keys(metaOther).length > 0 ? metaOther : undefined,
   };
 }
 
@@ -47,7 +89,12 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const settings = await getAdSettings();
+  const [settings, siteConfig] = await Promise.all([
+    getAdSettings(),
+    getSiteConfigFromFirestore()
+  ]);
+
+  const headerScripts = siteConfig.headerScripts || settings.headerScripts || '';
 
   return (
     <html lang="en" suppressHydrationWarning>
@@ -65,7 +112,7 @@ export default async function RootLayout({
             </Suspense>
             <MainLayout>{children}</MainLayout>
             <SocialBarAd />
-            <GlobalHeaderScripts scripts={settings.headerScripts} />
+            <GlobalHeaderScripts scripts={headerScripts} />
             <Toaster />
             <ScrollToTop />
           </AuthProvider>
@@ -74,3 +121,5 @@ export default async function RootLayout({
     </html>
   );
 }
+
+

@@ -88,9 +88,9 @@ export async function addContentToFirestore(content: Content): Promise<{ success
 /**
  * Get all manually added content from Firestore with in-memory caching
  */
-export async function getContentFromFirestore(): Promise<Content[]> {
+export async function getContentFromFirestore(forceRefresh = false): Promise<Content[]> {
     const now = Date.now();
-    if (cachedAllContent && (now - cachedAllContentTime < CONTENT_CACHE_TTL)) {
+    if (!forceRefresh && cachedAllContent && (now - cachedAllContentTime < CONTENT_CACHE_TTL)) {
         return cachedAllContent;
     }
 
@@ -220,6 +220,7 @@ export type SiteConfig = {
     downloadLinkPresets?: string[];
     customLanguages?: string[];
     showPublicViewsCount?: boolean;
+    headerScripts?: string;
 }
 
 export async function getSiteConfigFromFirestore(): Promise<SiteConfig> {
