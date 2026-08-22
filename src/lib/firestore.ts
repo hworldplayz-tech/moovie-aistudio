@@ -7,6 +7,7 @@ import type { Content, LiveChannel } from './definitions';
 
 const CONTENT_COLLECTION = 'manually_added_content';
 const LIVE_TV_COLLECTION = 'live_tv_channels';
+const EXTERNAL_VIEWS_COLLECTION = 'external_item_views';
 
 function sanitizeForFirestore(obj: any): any {
     if (obj === null || obj === undefined) return null;
@@ -57,8 +58,17 @@ export function invalidateLiveTvCache() {
 /**
  * Add or update content in Firestore
  */
-export async function addContentToFirestore(content: Content): Promise<{ success: boolean }> {
+export async function addContentToFirestore(content: Content): Promise<{ success: boolean; error?: string }> {
     try {
+        if (!content || !content.id) {
+            return { success: false, error: 'Invalid content ID' };
+        }
+        const cleanTitle = (content.title || '').trim();
+        if (!cleanTitle || cleanTitle.toLowerCase() === 'untitled') {
+            console.warn(`[Firestore] Blocked attempt to save untitled content (ID: ${content.id}) to manually_added_content.`);
+            return { success: false, error: 'Cannot save content without a valid title' };
+        }
+
         const contentRef = doc(db, CONTENT_COLLECTION, String(content.id));
         // Fetch existing doc to preserve createdAt
         const docSnap = await import('firebase/firestore').then(mod => mod.getDoc(contentRef));
@@ -72,6 +82,7 @@ export async function addContentToFirestore(content: Content): Promise<{ success
 
         const dataToSave = sanitizeForFirestore({
             ...content,
+            title: cleanTitle,
             createdAt: createdAt,
             updatedAt: new Date().toISOString(),
         });
@@ -81,7 +92,7 @@ export async function addContentToFirestore(content: Content): Promise<{ success
         return { success: true };
     } catch (error) {
         console.error('Failed to add content to Firestore:', error);
-        return { success: false };
+        return { success: false, error: error instanceof Error ? error.message : 'Failed to add content' };
     }
 }
 
@@ -101,10 +112,27 @@ export async function getContentFromFirestore(forceRefresh = false): Promise<Con
         const snapshot = await getDocs(contentQuery);
 
         const content: Content[] = [];
-        snapshot.forEach((doc) => {
-            const data = doc.data();
-            content.push(data as Content);
+        const invalidDocIdsToDelete: string[] = [];
+
+        snapshot.forEach((docSnap) => {
+            const data = docSnap.data() as Content;
+            const title = (data?.title || '').trim();
+            // Strictly exclude any unpopulated/untitled stub records
+            if (title && title.toLowerCase() !== 'untitled') {
+                content.push(data);
+            } else {
+                // Ghost/untitled stub found, mark for deletion to clean Firestore
+                invalidDocIdsToDelete.push(docSnap.id);
+            }
         });
+
+        // Asynchronously clean up ghost/untitled stubs from Firestore
+        if (invalidDocIdsToDelete.length > 0) {
+            console.log(`[Firestore] Cleaning up ${invalidDocIdsToDelete.length} invalid/untitled content stubs...`);
+            Promise.allSettled(
+                invalidDocIdsToDelete.map(id => deleteDoc(doc(db, CONTENT_COLLECTION, id)))
+            ).catch(err => console.error('Failed to clean up untitled content stubs:', err));
+        }
 
         // Client-side sort to handle mixed data
         // Sort by releaseDate desc (newest first), fallback to createdAt
@@ -130,13 +158,17 @@ export async function getContentFromFirestore(forceRefresh = false): Promise<Con
 export async function getContentByIdFromFirestore(id: string): Promise<Content | null> {
     if (cachedAllContent && (Date.now() - cachedAllContentTime < CONTENT_CACHE_TTL)) {
         const found = cachedAllContent.find(c => String(c.id) === String(id));
-        if (found) return found;
+        if (found && found.title && found.title.trim().toLowerCase() !== 'untitled') return found;
     }
     try {
         const docRef = doc(db, CONTENT_COLLECTION, String(id));
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
-            return docSnap.data() as Content;
+            const data = docSnap.data() as Content;
+            const title = (data?.title || '').trim();
+            if (title && title.toLowerCase() !== 'untitled') {
+                return data;
+            }
         }
     } catch (error) {
         console.error(`Failed to get content ${id} from Firestore:`, error);
@@ -995,7 +1027,12 @@ export async function recordItemView(
                     currentViews = chanSnap.exists() ? (chanSnap.data()?.viewsCount || 0) : 0;
                 } else {
                     const contentSnap = await getDoc(doc(db, CONTENT_COLLECTION, cleanId));
-                    currentViews = contentSnap.exists() ? (contentSnap.data()?.viewsCount || 0) : 0;
+                    if (contentSnap.exists()) {
+                        currentViews = contentSnap.data()?.viewsCount || 0;
+                    } else {
+                        const extSnap = await getDoc(doc(db, EXTERNAL_VIEWS_COLLECTION, cleanId));
+                        currentViews = extSnap.exists() ? (extSnap.data()?.viewsCount || 0) : 0;
+                    }
                 }
                 return { success: true, viewsCount: currentViews, showPublicViews };
             }
@@ -1026,15 +1063,22 @@ export async function recordItemView(
                 await updateDoc(contentRef, { viewsCount: increment(1) });
                 newViewsCount = (contentSnap.data()?.viewsCount || 0) + 1;
             } else {
-                // If item is not in manually_added_content yet (e.g. TMDB item), save a stub record
-                await setDoc(contentRef, {
-                    id: cleanId,
-                    type: type || 'movie',
-                    viewsCount: 1,
-                    createdAt: new Date().toISOString(),
-                    updatedAt: new Date().toISOString()
-                }, { merge: true });
-                newViewsCount = 1;
+                // External / TMDB item not yet imported into library: store view count in external collection
+                const extRef = doc(db, EXTERNAL_VIEWS_COLLECTION, cleanId);
+                const extSnap = await getDoc(extRef);
+                if (extSnap.exists()) {
+                    await updateDoc(extRef, { viewsCount: increment(1), updatedAt: new Date().toISOString() });
+                    newViewsCount = (extSnap.data()?.viewsCount || 0) + 1;
+                } else {
+                    await setDoc(extRef, {
+                        id: cleanId,
+                        type: type || 'movie',
+                        viewsCount: 1,
+                        createdAt: new Date().toISOString(),
+                        updatedAt: new Date().toISOString()
+                    });
+                    newViewsCount = 1;
+                }
             }
         }
 
