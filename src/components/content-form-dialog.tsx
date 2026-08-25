@@ -23,11 +23,13 @@ import { Separator } from '@/components/ui/separator';
 import { Loader2, Search, Plus, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { getContentById } from '@/lib/tmdb';
-import type { Content, DownloadLink } from '@/lib/definitions';
+import type { Content, DownloadLink, SeasonData } from '@/lib/definitions';
 import { updateContent } from '@/ai/flows/update-content';
 import { ContentCard } from './content-card';
 import { getDownloadLinkPresets, getSiteLanguages } from '@/app/admin/actions';
 import { DEFAULT_LINK_PRESETS, DEFAULT_SITE_LANGUAGES } from '@/lib/firestore';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { SeasonsManager } from './seasons-manager';
 
 type ContentFormDialogProps = {
   children: React.ReactNode;
@@ -50,6 +52,11 @@ export function ContentFormDialog({ children, contentToEdit, onSave, currentUser
   const [trailerUrl, setTrailerUrl] = useState(contentToEdit?.trailerUrl || '');
   // Removed single downloadLink state in favor of list
   const [downloadLinks, setDownloadLinks] = useState<DownloadLink[]>([]);
+  // Web Series Seasons & Episodes state
+  const [downloadMode, setDownloadMode] = useState<'single' | 'seasons'>(
+    (contentToEdit?.seasons && contentToEdit.seasons.length > 0) ? 'seasons' : 'single'
+  );
+  const [seasons, setSeasons] = useState<SeasonData[]>(contentToEdit?.seasons || []);
   // const [isHindiDubbed, setIsHindiDubbed] = useState(contentToEdit?.isHindiDubbed || false); // Deprecated state, mapped to languages
   const [selectedLanguages, setSelectedLanguages] = useState<string[]>([]);
   const [availableLanguages, setAvailableLanguages] = useState<string[]>(DEFAULT_SITE_LANGUAGES);
@@ -122,6 +129,15 @@ export function ContentFormDialog({ children, contentToEdit, onSave, currentUser
         setDownloadLinks([]);
       }
 
+      // Initialize seasons
+      if (contentToEdit.seasons && contentToEdit.seasons.length > 0) {
+        setSeasons(contentToEdit.seasons);
+        setDownloadMode('seasons');
+      } else {
+        setSeasons([]);
+        setDownloadMode(contentToEdit.media_type === 'tv' || contentType === 'tv' ? 'seasons' : 'single');
+      }
+
       // Initialize Languages and Quality
       let langs = contentToEdit.languages || [];
       if (contentToEdit.isHindiDubbed && !langs.includes('Hindi Dubbed')) {
@@ -142,6 +158,8 @@ export function ContentFormDialog({ children, contentToEdit, onSave, currentUser
       setPreviewContent(null);
       setTrailerUrl('');
       setDownloadLinks([]);
+      setSeasons([]);
+      setDownloadMode('single');
       setSelectedLanguages([]);
       setSelectedQuality([]);
       setCustomTags('');
@@ -174,6 +192,14 @@ export function ContentFormDialog({ children, contentToEdit, onSave, currentUser
           setDownloadLinks([{ label: 'Download', url: content.downloadLink }]);
         } else {
           setDownloadLinks([]);
+        }
+
+        if (content.seasons && content.seasons.length > 0) {
+          setSeasons(content.seasons);
+          setDownloadMode('seasons');
+        } else {
+          setSeasons([]);
+          setDownloadMode(contentType === 'tv' ? 'seasons' : 'single');
         }
 
         // Initialize from TMDB or defaults
@@ -223,6 +249,7 @@ export function ContentFormDialog({ children, contentToEdit, onSave, currentUser
       downloadLinks: validLinks,
       // Maintain backward compatibility
       downloadLink: validLinks.length > 0 ? validLinks[0].url : undefined,
+      seasons: (downloadMode === 'seasons' || seasons.length > 0) ? seasons : undefined,
       languages: selectedLanguages,
       quality: selectedQuality,
       isHindiDubbed: selectedLanguages.includes('Hindi Dubbed'),
@@ -255,7 +282,7 @@ export function ContentFormDialog({ children, contentToEdit, onSave, currentUser
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>{children}</DialogTrigger>
-      <DialogContent className="max-h-[85vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-2xl md:max-w-3xl lg:max-w-4xl xl:max-w-5xl max-h-[88vh] overflow-y-auto w-full p-4 sm:p-6">
         <DialogHeader>
           <DialogTitle>{isEditing ? 'Edit Content' : 'Add New Content'}</DialogTitle>
           <DialogDescription>
@@ -322,38 +349,59 @@ export function ContentFormDialog({ children, contentToEdit, onSave, currentUser
                   />
                 </div>
 
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <Label>Download Links / Episodes</Label>
-                    <div className="flex gap-2">
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => {
-                          setShowMp4Generator(!showMp4Generator);
-                          if (!showMp4Generator && !mp4MovieSlug && title) {
-                            setMp4MovieSlug(title.trim().replace(/[^a-zA-Z0-9]+/g, '-'));
-                          }
-                        }}
-                        className="text-xs bg-rose-500/10 text-rose-600 hover:bg-rose-500/20 border border-rose-200"
-                      >
-                        🎬 Mp4Moviez Helper
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => setShowFzGenerator(!showFzGenerator)}
-                        className="text-xs bg-orange-500/10 text-orange-600 hover:bg-orange-500/20 border border-orange-200"
-                      >
-                        ⚡ Filmyzilla ID Helper
-                      </Button>
-                      <Button type="button" variant="outline" size="sm" onClick={handleAddLink}>
-                        <Plus className="h-4 w-4 mr-1" /> Add Link
-                      </Button>
+                {/* Download Structure Configuration */}
+                <div className="space-y-3 rounded-xl border border-border/80 bg-muted/20 p-3">
+                  <Tabs value={downloadMode} onValueChange={(val) => setDownloadMode(val as 'single' | 'seasons')}>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b">
+                      <div>
+                        <Label className="font-bold text-sm">Download Configuration</Label>
+                        <p className="text-[11px] text-muted-foreground">
+                          Choose Single File / Movie Links or TV Series Seasons & Episodes.
+                        </p>
+                      </div>
+                      <TabsList className="h-8 bg-background/80 border">
+                        <TabsTrigger value="single" className="text-xs px-3 font-semibold data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+                          Movie / Single {downloadLinks.length > 0 ? `(${downloadLinks.length})` : ''}
+                        </TabsTrigger>
+                        <TabsTrigger value="seasons" className="text-xs px-3 font-semibold data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+                          📁 TV Series Seasons {seasons.length > 0 ? `(${seasons.length})` : ''}
+                        </TabsTrigger>
+                      </TabsList>
                     </div>
-                  </div>
+
+                    {/* Tab 1: Single / Standard Movie Links */}
+                    <TabsContent value="single" className="space-y-3 mt-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-muted-foreground">Standard download buttons for movie or single video.</span>
+                        <div className="flex gap-2">
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => {
+                              setShowMp4Generator(!showMp4Generator);
+                              if (!showMp4Generator && !mp4MovieSlug && (previewContent?.title || title)) {
+                                setMp4MovieSlug((previewContent?.title || title).trim().replace(/[^a-zA-Z0-9]+/g, '-'));
+                              }
+                            }}
+                            className="text-xs bg-rose-500/10 text-rose-600 hover:bg-rose-500/20 border border-rose-200"
+                          >
+                            🎬 Mp4Moviez Helper
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => setShowFzGenerator(!showFzGenerator)}
+                            className="text-xs bg-orange-500/10 text-orange-600 hover:bg-orange-500/20 border border-orange-200"
+                          >
+                            ⚡ Filmyzilla ID Helper
+                          </Button>
+                          <Button type="button" variant="outline" size="sm" onClick={handleAddLink}>
+                            <Plus className="h-4 w-4 mr-1" /> Add Link
+                          </Button>
+                        </div>
+                      </div>
 
                   {/* Quick Mp4Moviez Link Generator Box */}
                   {showMp4Generator && (
@@ -633,8 +681,19 @@ export function ContentFormDialog({ children, contentToEdit, onSave, currentUser
                         No download links added.
                       </p>
                     )}
-                  </div>
-                </div>
+                    </div>
+                  </TabsContent>
+
+                  {/* Tab 2: Seasons & Episodes Manager (Web Series / TV Shows) */}
+                  <TabsContent value="seasons" className="space-y-3 mt-3">
+                    <SeasonsManager
+                      seasons={seasons}
+                      onChange={setSeasons}
+                      linkPresets={linkPresets}
+                    />
+                  </TabsContent>
+                </Tabs>
+              </div>
 
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="customTags" className="text-right">Custom Tags</Label>

@@ -13,7 +13,11 @@ import AdWrapper from '@/components/ads/ad-wrapper';
 export default function DownloadPage() {
     const searchParams = useSearchParams();
     const id = searchParams?.get('id');
-    const index = searchParams?.get('index');
+    const index = searchParams?.get('index') || searchParams?.get('linkIndex');
+    const season = searchParams?.get('season');
+    const episode = searchParams?.get('episode');
+    const type = searchParams?.get('type');
+
     const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
     const [timeLeft, setTimeLeft] = useState(5);
     const [maxTime, setMaxTime] = useState(5);
@@ -26,10 +30,21 @@ export default function DownloadPage() {
             if (!id) return;
 
             try {
+                const parsedLinkIdx = index !== null && index !== undefined ? parseInt(index, 10) : undefined;
+                const parsedSeason = season ? parseInt(season, 10) : undefined;
+                const parsedEpisode = episode ? parseInt(episode, 10) : undefined;
+                const isZip = type === 'zip';
+
                 // Fetch settings and download URL in parallel using Server Actions
                 const [settings, downloadData] = await Promise.all([
                     getSecureDownloadSettings(),
-                    getDownloadUrl(Number(id), index ? parseInt(index) : undefined)
+                    getDownloadUrl(
+                        id,
+                        parsedLinkIdx,
+                        parsedSeason,
+                        parsedEpisode,
+                        isZip
+                    )
                 ]);
 
                 setTimeLeft(settings.delay);
@@ -47,7 +62,7 @@ export default function DownloadPage() {
             }
         }
         init();
-    }, [id, index]);
+    }, [id, index, season, episode, type]);
 
     useEffect(() => {
         if (!downloadUrl) return;

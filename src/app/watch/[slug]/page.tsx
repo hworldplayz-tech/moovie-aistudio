@@ -27,6 +27,7 @@ import NativeAd from "@/components/ads/native-ad";
 import PopupHandler from "@/components/ads/popup-handler";
 import { RequestUploadButton } from "@/components/request-upload-button";
 import { ViewCounter } from "@/components/view-counter";
+import { SeriesEpisodeDownloads } from "@/components/series-episode-downloads";
 
 
 import { cache } from 'react';
@@ -104,6 +105,9 @@ const resolveContentFromSlug = cache(async (slug: string) => {
       downloadLinks: (manualItem.downloadLinks && manualItem.downloadLinks.length > 0) 
         ? manualItem.downloadLinks 
         : (apiContent?.downloadLinks || []),
+      seasons: (manualItem.seasons && manualItem.seasons.length > 0)
+        ? manualItem.seasons
+        : (apiContent?.seasons || []),
       downloadLink: manualItem.downloadLink || apiContent?.downloadLink,
       trailerUrl: manualItem.trailerUrl || apiContent?.trailerUrl,
       inLibrary: true,
@@ -119,6 +123,7 @@ const resolveContentFromSlug = cache(async (slug: string) => {
 
   const hasDownloadLinks = !!(
     (finalContent.downloadLinks && finalContent.downloadLinks.length > 0) ||
+    (finalContent.seasons && finalContent.seasons.length > 0) ||
     finalContent.downloadLink
   );
 
@@ -352,7 +357,14 @@ export default async function WatchPage({ params }: WatchPageProps) {
 
               {/* Download Button Logic - FOR ITEMS IN LIBRARY */}
               {!isTmdbOnly && globalEnabled && (
-                hasDownloadButtons ? (
+                content.seasons && content.seasons.length > 0 ? (
+                  <SeriesEpisodeDownloads
+                    content={content}
+                    secureEnabled={secureEnabled}
+                    filmyzillaLinksEnabled={filmyzillaLinksEnabled}
+                    mp4moviezLinksEnabled={mp4moviezLinksEnabled}
+                  />
+                ) : hasDownloadButtons ? (
                   activeDownloadLinks.length > 1 ? (
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>

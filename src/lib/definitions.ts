@@ -5,6 +5,20 @@ export type DownloadLink = {
   url: string;
 };
 
+export type EpisodeDownload = {
+  episodeNumber: number;
+  episodeTitle?: string;
+  downloadLink?: string; // Quick/single fallback link
+  downloadLinks?: DownloadLink[]; // Multi-quality links (e.g. 480p, 720p, 1080p)
+};
+
+export type SeasonData = {
+  seasonNumber: number;
+  seasonTitle?: string;
+  zipPackLinks?: DownloadLink[]; // Complete Season Batch/Zip pack links
+  episodes: EpisodeDownload[];
+};
+
 export type Content = {
   id: string;
   title: string;
@@ -19,6 +33,7 @@ export type Content = {
   youtubeTrailerUrl?: string;
   downloadLink?: string; // Deprecated, but kept for backward compatibility
   downloadLinks?: DownloadLink[];
+  seasons?: SeasonData[]; // Structured season & episode downloads for TV / Web Series
   isHindiDubbed?: boolean;
   customTags?: string[];
   cast?: CastMember[];

@@ -102,7 +102,7 @@ export default async function RootLayout({
       <body className={`${inter.variable} font-body antialiased`} suppressHydrationWarning>
         <ThemeProvider
           attribute="class"
-          defaultTheme="dark"
+          defaultTheme="light"
           enableSystem
           disableTransitionOnChange
         >

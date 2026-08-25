@@ -1063,28 +1063,61 @@ export async function migrateDownloadDomains(
  * Used by the download interstitial page
  */
 export async function getDownloadUrl(
-  contentId: number,
-  linkIndex?: number
+  contentId: number | string,
+  linkIndex?: number,
+  seasonNum?: number,
+  episodeNum?: number,
+  isZip?: boolean
 ): Promise<{ title: string; url: string } | null> {
   try {
     const allContent = await getContentFromFirestore();
-    const content = allContent.find(c => c.id === String(contentId));
+    const content = allContent.find(c => String(c.id) === String(contentId));
 
     if (!content) {
       return null;
     }
 
     let url = '';
+    let resolvedTitle = content.title;
 
-    // If linkIndex is provided, get specific link from downloadLinks array
-    if (linkIndex !== undefined && content.downloadLinks && content.downloadLinks[linkIndex]) {
+    // 1. If Season & Episode specific request
+    if (seasonNum !== undefined && episodeNum !== undefined && content.seasons && content.seasons.length > 0) {
+      const season = content.seasons.find(s => s.seasonNumber === seasonNum);
+      if (season && season.episodes) {
+        const episode = season.episodes.find(e => e.episodeNumber === episodeNum);
+        if (episode) {
+          resolvedTitle = `${content.title} - S${seasonNum}E${episodeNum} (${episode.episodeTitle || 'Episode'})`;
+          if (linkIndex !== undefined && episode.downloadLinks && episode.downloadLinks[linkIndex]) {
+            url = episode.downloadLinks[linkIndex].url;
+          } else if (episode.downloadLinks && episode.downloadLinks.length > 0) {
+            url = episode.downloadLinks[0].url;
+          } else if (episode.downloadLink) {
+            url = episode.downloadLink;
+          }
+        }
+      }
+    }
+    // 2. If Full Season ZIP Pack request
+    else if (isZip && seasonNum !== undefined && content.seasons && content.seasons.length > 0) {
+      const season = content.seasons.find(s => s.seasonNumber === seasonNum);
+      if (season && season.zipPackLinks && season.zipPackLinks.length > 0) {
+        resolvedTitle = `${content.title} - Season ${seasonNum} Complete ZIP Pack`;
+        if (linkIndex !== undefined && season.zipPackLinks[linkIndex]) {
+          url = season.zipPackLinks[linkIndex].url;
+        } else {
+          url = season.zipPackLinks[0].url;
+        }
+      }
+    }
+    // 3. If linkIndex is provided for standard movie downloadLinks array
+    else if (linkIndex !== undefined && content.downloadLinks && content.downloadLinks[linkIndex]) {
       url = content.downloadLinks[linkIndex].url;
     }
-    // Otherwise, fall back to legacy downloadLink
+    // 4. Otherwise, fall back to legacy downloadLink
     else if (content.downloadLink) {
       url = content.downloadLink;
     }
-    // Or first item in downloadLinks if available
+    // 5. Or first item in downloadLinks if available
     else if (content.downloadLinks && content.downloadLinks.length > 0) {
       url = content.downloadLinks[0].url;
     }
@@ -1106,7 +1139,7 @@ export async function getDownloadUrl(
     }
 
     return {
-      title: content.title,
+      title: resolvedTitle,
       url
     };
   } catch (error) {
