@@ -63,6 +63,7 @@ export async function getSecureDownloadSettings(): Promise<{
   delay: number;
   globalEnabled: boolean;
   filmyzillaLinksEnabled: boolean;
+  mp4moviezLinksEnabled: boolean;
   showLiveTvCarousel: boolean;
   showFeaturedSection?: boolean;
   featuredLayout?: 'slider' | 'grid' | 'list';
@@ -78,6 +79,7 @@ export async function getSecureDownloadSettings(): Promise<{
     delay: typeof config.downloadButtonDelay === 'number' ? config.downloadButtonDelay : 5,
     globalEnabled: config.globalDownloadsEnabled !== undefined ? config.globalDownloadsEnabled : true,
     filmyzillaLinksEnabled: config.filmyzillaLinksEnabled !== undefined ? config.filmyzillaLinksEnabled : true,
+    mp4moviezLinksEnabled: config.mp4moviezLinksEnabled !== undefined ? config.mp4moviezLinksEnabled : true,
     showLiveTvCarousel: config.showLiveTvCarousel !== undefined ? config.showLiveTvCarousel : true,
     showFeaturedSection: config.showFeaturedSection,
     featuredLayout: config.featuredLayout,
@@ -89,7 +91,8 @@ export async function updateSecureDownloadSettings(
   enabled: boolean,
   delay: number,
   globalEnabled: boolean,
-  filmyzillaLinksEnabled: boolean = true
+  filmyzillaLinksEnabled: boolean = true,
+  mp4moviezLinksEnabled: boolean = true
 ): Promise<{ success: boolean; error?: string }> {
   if (typeof delay !== 'number' || delay < 0) {
     return { success: false, error: 'Delay must be a positive number.' };
@@ -100,7 +103,8 @@ export async function updateSecureDownloadSettings(
       secureDownloadsEnabled: enabled,
       downloadButtonDelay: delay,
       globalDownloadsEnabled: globalEnabled,
-      filmyzillaLinksEnabled: filmyzillaLinksEnabled
+      filmyzillaLinksEnabled: filmyzillaLinksEnabled,
+      mp4moviezLinksEnabled: mp4moviezLinksEnabled
     });
     return { success: true };
   } catch (error) {
@@ -117,6 +121,18 @@ export async function toggleFilmyzillaLinksAction(enabled: boolean): Promise<{ s
     return { success: true };
   } catch (error) {
     console.error('Failed to toggle Filmyzilla links kill switch:', error);
+    return { success: false, error: 'Failed to save setting.' };
+  }
+}
+
+export async function toggleMp4moviezLinksAction(enabled: boolean): Promise<{ success: boolean; error?: string }> {
+  try {
+    await saveSiteConfigToFirestore({
+      mp4moviezLinksEnabled: enabled
+    });
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to toggle Mp4Moviez links kill switch:', error);
     return { success: false, error: 'Failed to save setting.' };
   }
 }
@@ -308,41 +324,122 @@ export async function getUserByUsername(username: string): Promise<SystemUser | 
  */
 export type MigrationMode = 'domain' | 'path' | 'server' | 'custom';
 
-function replaceDomainOnly(url: string, findDomainsRaw: string, replaceDomainRaw: string): string {
-  if (!url || !findDomainsRaw || !replaceDomainRaw) return url;
-  
-  let targetDomain = replaceDomainRaw.trim().replace(/^https?:\/\//i, '').replace(/\/+$/, '');
-  if (!targetDomain) return url;
+function isMp4moviezUrl(url?: string): boolean {
+  if (!url) return false;
+  const lower = url.toLowerCase();
+  return (
+    lower.includes('mp4moviez') ||
+    (lower.includes('dl.php') && (lower.includes('id=') || lower.includes('jio=') || lower.includes('q=')))
+  );
+}
 
+function isFilmyzillaUrl(url?: string): boolean {
+  if (!url) return false;
+  return url.toLowerCase().includes('filmyzilla');
+}
+
+function cleanDomainHost(d: string): string {
+  return d.trim().toLowerCase().replace(/^https?:\/\//i, '').replace(/\/.*$/, '').replace(/^www\./i, '');
+}
+
+function replaceDomainOnly(url: string, findDomainsRaw: string, replaceDomainRaw: string): string {
+  if (!url || !findDomainsRaw) return url;
+  
+  const targetHost = replaceDomainRaw ? cleanDomainHost(replaceDomainRaw) : '';
   const findDomains = findDomainsRaw.split(/[\n,]+/)
-    .map(d => d.trim().replace(/^https?:\/\//i, '').replace(/\/+$/, ''))
+    .map(d => cleanDomainHost(d))
     .filter(Boolean);
 
-  let currentUrl = url;
-  for (const domain of findDomains) {
-    if (!domain) continue;
-    const escaped = domain.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    
-    // Match http(s)://(subdomain.)domain.com
-    const protoRegex = new RegExp(`^(https?:\\/\\/(?:[^\\/]+\\.)?)${escaped}(\\b|\\/|:|$)`, 'i');
-    if (protoRegex.test(currentUrl)) {
-      currentUrl = currentUrl.replace(protoRegex, `$1${targetDomain}$2`);
-      continue;
-    }
+  if (findDomains.length === 0) return url;
 
-    // Match www.domain.com or domain.com at start of URL before path
-    const startRegex = new RegExp(`^((?:www\\.)?)${escaped}(\\b|\\/|:|$)`, 'i');
-    if (startRegex.test(currentUrl)) {
-      currentUrl = currentUrl.replace(startRegex, `$1${targetDomain}$2`);
-      continue;
-    }
-
-    // Fallback: replace domain in protocol host position
-    const fallbackRegex = new RegExp(`(https?:\\/\\/)${escaped}(\\b|\\/|:|$)`, 'gi');
-    currentUrl = currentUrl.replace(fallbackRegex, `$1${targetDomain}$2`);
+  let isPrefixed = false;
+  let workUrl = url.trim();
+  if (!/^https?:\/\//i.test(workUrl)) {
+    workUrl = 'https://' + workUrl;
+    isPrefixed = true;
   }
 
-  return currentUrl;
+  try {
+    const urlObj = new URL(workUrl);
+    const hostLower = urlObj.hostname.toLowerCase();
+    
+    for (const target of findDomains) {
+      if (hostLower === target || hostLower === `www.${target}` || hostLower.endsWith(`.${target}`)) {
+        if (!targetHost) return url;
+        urlObj.hostname = targetHost;
+        const res = urlObj.toString();
+        return isPrefixed && !url.trim().startsWith('http') ? res.replace(/^https?:\/\//i, '') : res;
+      }
+    }
+  } catch {
+    // Fallback if URL constructor fails
+  }
+
+  // Regex fallback
+  for (const target of findDomains) {
+    const escaped = target.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(`(https?:\\/\\/(?:[a-z0-9_.-]+\\.)?)${escaped}([:\\/\\?#]|$)`, 'i');
+    if (regex.test(url)) {
+      if (!targetHost) return url;
+      return url.replace(regex, `$1${targetHost}$2`);
+    }
+  }
+
+  return url;
+}
+
+function urlMatchesDomain(url: string, findDomainsRaw: string): boolean {
+  if (!url || !findDomainsRaw) return false;
+  const findDomains = findDomainsRaw.split(/[\n,]+/)
+    .map(d => cleanDomainHost(d))
+    .filter(Boolean);
+
+  if (findDomains.length === 0) return false;
+
+  let workUrl = url.trim();
+  if (!/^https?:\/\//i.test(workUrl)) {
+    workUrl = 'https://' + workUrl;
+  }
+
+  try {
+    const urlObj = new URL(workUrl);
+    const hostLower = urlObj.hostname.toLowerCase();
+    for (const target of findDomains) {
+      if (hostLower === target || hostLower === `www.${target}` || hostLower.includes(target)) {
+        return true;
+      }
+    }
+  } catch {
+    // Fallback
+  }
+
+  const lowerUrl = url.toLowerCase();
+  for (const target of findDomains) {
+    if (lowerUrl.includes(target)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function urlMatchesPath(url: string, findPathsRaw: string, flexMatch: boolean = false): boolean {
+  if (!url || !findPathsRaw) return false;
+  const rawTerms = findPathsRaw.split(/[\n,]+/).map(s => s.trim().replace(/^\/+|\/+$/g, '')).filter(Boolean);
+  if (rawTerms.length === 0) return false;
+
+  const lowerUrl = url.toLowerCase();
+  for (const term of rawTerms) {
+    const lowerTerm = term.toLowerCase();
+    if (lowerUrl.includes(lowerTerm)) return true;
+    if (flexMatch) {
+      if (lowerTerm === 'download' && lowerUrl.includes('downloads')) return true;
+      if (lowerTerm === 'downloads' && lowerUrl.includes('download')) return true;
+      if (lowerTerm === 'verified' && lowerUrl.includes('verifieds')) return true;
+      if (lowerTerm === 'verifieds' && lowerUrl.includes('verified')) return true;
+    }
+  }
+  return false;
 }
 
 function replacePathSegmentsOnly(
@@ -456,7 +553,7 @@ export async function scanDatabaseDownloadLinks(): Promise<{
   error?: string;
 }> {
   try {
-    const allContent = await getContentFromFirestore();
+    const allContent = await getContentFromFirestore(true);
     const domainCounts: Record<string, number> = {};
     const segmentCounts: Record<string, number> = {};
     let totalLinks = 0;
@@ -527,6 +624,21 @@ export async function scanDatabaseDownloadLinks(): Promise<{
   }
 }
 
+function checkLinkMatchesCriteria(url: string, findText: string, mode: MigrationMode, flexMatch: boolean): boolean {
+  if (!url || !findText) return false;
+  if (mode === 'domain') {
+    return urlMatchesDomain(url, findText);
+  } else if (mode === 'path') {
+    return urlMatchesPath(url, findText, flexMatch);
+  } else if (mode === 'server') {
+    const rawTerms = findText.split(/[\n,]+/).map(s => s.trim()).filter(Boolean);
+    return rawTerms.some(term => url.toLowerCase().includes(term.toLowerCase()));
+  } else {
+    const rawTerms = findText.split(/[\n,]+/).map(s => s.trim()).filter(Boolean);
+    return rawTerms.some(term => url.toLowerCase().includes(term.toLowerCase()));
+  }
+}
+
 /**
  * Link Migration & Pattern Replacement Tool
  * Batch updates download links by replacing any target substring or pattern
@@ -547,7 +659,7 @@ export async function previewLinkMigration(
   }
 
   try {
-    const allContent = await getContentFromFirestore();
+    const allContent = await getContentFromFirestore(true);
     const matches: Array<{ id: string | number; title: string; oldUrl: string; newUrlPreview: string }> = [];
 
     for (const item of allContent) {
@@ -555,26 +667,31 @@ export async function previewLinkMigration(
       let sampleOld = '';
       let sampleNew = '';
 
-      if (item.downloadLink) {
-        const newUrl = applyMigrationReplacements(item.downloadLink, findText, replaceText, mode, flexMatch);
-        if (newUrl !== item.downloadLink) {
+      const testUrl = (rawUrl: string) => {
+        if (!rawUrl) return;
+        const matches = checkLinkMatchesCriteria(rawUrl, findText, mode, flexMatch);
+        if (matches) {
           matchedInItem = true;
-          sampleOld = item.downloadLink;
-          sampleNew = newUrl;
+          if (!sampleOld) {
+            sampleOld = rawUrl;
+            if (replaceText && replaceText.trim() !== '') {
+              const newUrl = applyMigrationReplacements(rawUrl, findText, replaceText, mode, flexMatch);
+              sampleNew = newUrl;
+            } else {
+              sampleNew = `(Matched: ${rawUrl})`;
+            }
+          }
         }
+      };
+
+      if (item.downloadLink) {
+        testUrl(item.downloadLink);
       }
 
       if (item.downloadLinks && Array.isArray(item.downloadLinks)) {
         for (const link of item.downloadLinks) {
           if (link.url) {
-            const newUrl = applyMigrationReplacements(link.url, findText, replaceText, mode, flexMatch);
-            if (newUrl !== link.url) {
-              matchedInItem = true;
-              if (!sampleOld) {
-                sampleOld = link.url;
-                sampleNew = newUrl;
-              }
-            }
+            testUrl(link.url);
           }
         }
       }
@@ -592,7 +709,7 @@ export async function previewLinkMigration(
     return {
       success: true,
       matchCount: matches.length,
-      sampleMatches: matches.slice(0, 10)
+      sampleMatches: matches.slice(0, 15)
     };
   } catch (error) {
     console.error('Link migration preview failed:', error);
@@ -616,7 +733,7 @@ export async function migrateDownloadLinks(
   }
 
   try {
-    const allContent = await getContentFromFirestore();
+    const allContent = await getContentFromFirestore(true);
     let updatedCount = 0;
 
     for (const item of allContent) {
@@ -663,6 +780,277 @@ export async function migrateDownloadLinks(
   }
 }
 
+/* ==========================================================================
+   🎬 DEDICATED MP4MOVIEZ ISOLATED MIGRATION SUITE
+   Guarantees 100% isolation: Filmyzilla & other links are strictly untouched!
+   ========================================================================== */
+
+export type Mp4moviezMigrationMode = 'domain' | 'path' | 'full' | 'custom';
+
+export interface Mp4moviezMigrationParams {
+  mode: Mp4moviezMigrationMode;
+  oldDomain?: string;
+  newDomain?: string;
+  oldPath?: string;
+  newPath?: string;
+  oldCustom?: string;
+  newCustom?: string;
+}
+
+function applyMp4moviezReplacements(url: string, params: Mp4moviezMigrationParams): string {
+  if (!url || !isMp4moviezUrl(url)) return url;
+
+  let currentUrl = url;
+
+  if (params.mode === 'domain' && params.oldDomain && params.newDomain) {
+    currentUrl = replaceDomainOnly(currentUrl, params.oldDomain, params.newDomain);
+  } else if (params.mode === 'path' && params.oldPath && params.newPath) {
+    currentUrl = replacePathSegmentsOnly(currentUrl, params.oldPath, params.newPath, false);
+  } else if (params.mode === 'full') {
+    if (params.oldDomain && params.newDomain) {
+      currentUrl = replaceDomainOnly(currentUrl, params.oldDomain, params.newDomain);
+    }
+    if (params.oldPath && params.newPath) {
+      currentUrl = replacePathSegmentsOnly(currentUrl, params.oldPath, params.newPath, false);
+    }
+  } else if (params.mode === 'custom' && params.oldCustom && params.newCustom) {
+    const rawTerms = params.oldCustom.split(/[\n,]+/).map(t => t.trim()).filter(Boolean);
+    for (const term of rawTerms) {
+      const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      currentUrl = currentUrl.replace(new RegExp(escaped, 'gi'), params.newCustom.trim());
+    }
+  }
+
+  return currentUrl;
+}
+
+function isMp4moviezMatch(url: string, params: Mp4moviezMigrationParams): boolean {
+  if (!url || !isMp4moviezUrl(url)) return false;
+
+  if (params.mode === 'domain' && params.oldDomain) {
+    return urlMatchesDomain(url, params.oldDomain);
+  } else if (params.mode === 'path' && params.oldPath) {
+    return urlMatchesPath(url, params.oldPath, false);
+  } else if (params.mode === 'full') {
+    const domainMatch = params.oldDomain ? urlMatchesDomain(url, params.oldDomain) : false;
+    const pathMatch = params.oldPath ? urlMatchesPath(url, params.oldPath, false) : false;
+    return domainMatch || pathMatch;
+  } else if (params.mode === 'custom' && params.oldCustom) {
+    const terms = params.oldCustom.split(/[\n,]+/).map(t => t.trim()).filter(Boolean);
+    return terms.some(t => url.toLowerCase().includes(t.toLowerCase()));
+  }
+
+  return false;
+}
+
+/**
+ * Dedicated Scanner for Mp4Moviez Download Links
+ */
+export async function scanMp4moviezLinksAction(): Promise<{
+  success: boolean;
+  domains: Array<{ domain: string; count: number }>;
+  pathSegments: Array<{ segment: string; count: number }>;
+  totalLinksCount: number;
+  totalMoviesCount: number;
+  error?: string;
+}> {
+  try {
+    const allContent = await getContentFromFirestore(true);
+    const domainCounts: Record<string, number> = {};
+    const segmentCounts: Record<string, number> = {};
+    let totalLinks = 0;
+    let moviesCount = 0;
+
+    for (const item of allContent) {
+      const mp4Urls: string[] = [];
+      if (item.downloadLink && isMp4moviezUrl(item.downloadLink)) {
+        mp4Urls.push(item.downloadLink.trim());
+      }
+      if (item.downloadLinks && Array.isArray(item.downloadLinks)) {
+        for (const link of item.downloadLinks) {
+          if (link.url && isMp4moviezUrl(link.url)) {
+            mp4Urls.push(link.url.trim());
+          }
+        }
+      }
+
+      if (mp4Urls.length > 0) {
+        moviesCount++;
+        totalLinks += mp4Urls.length;
+        for (const rawUrl of mp4Urls) {
+          try {
+            const urlObj = new URL(rawUrl.startsWith('http') ? rawUrl : `https://${rawUrl}`);
+            const host = urlObj.hostname;
+            if (host) {
+              domainCounts[host] = (domainCounts[host] || 0) + 1;
+            }
+            const parts = urlObj.pathname.split('/').filter(p => p && !/^\d+$/.test(p));
+            for (const part of parts) {
+              segmentCounts[part] = (segmentCounts[part] || 0) + 1;
+            }
+          } catch {
+            const matchDomain = rawUrl.match(/https?:\/\/([^\/]+)/i);
+            if (matchDomain && matchDomain[1]) {
+              domainCounts[matchDomain[1]] = (domainCounts[matchDomain[1]] || 0) + 1;
+            }
+          }
+        }
+      }
+    }
+
+    const sortedDomains = Object.entries(domainCounts)
+      .map(([domain, count]) => ({ domain, count }))
+      .sort((a, b) => b.count - a.count);
+
+    const sortedSegments = Object.entries(segmentCounts)
+      .map(([segment, count]) => ({ segment, count }))
+      .sort((a, b) => b.count - a.count);
+
+    return {
+      success: true,
+      domains: sortedDomains,
+      pathSegments: sortedSegments,
+      totalLinksCount: totalLinks,
+      totalMoviesCount: moviesCount
+    };
+  } catch (error) {
+    console.error('Scan Mp4Moviez links failed:', error);
+    return {
+      success: false,
+      domains: [],
+      pathSegments: [],
+      totalLinksCount: 0,
+      totalMoviesCount: 0,
+      error: error instanceof Error ? error.message : 'Scan failed.'
+    };
+  }
+}
+
+/**
+ * Dedicated Preview for Mp4Moviez Link Migration
+ */
+export async function previewMp4moviezMigrationAction(params: Mp4moviezMigrationParams): Promise<{
+  success: boolean;
+  matchCount: number;
+  sampleMatches: Array<{ id: string | number; title: string; oldUrl: string; newUrlPreview: string }>;
+  error?: string;
+}> {
+  try {
+    const allContent = await getContentFromFirestore(true);
+    const matches: Array<{ id: string | number; title: string; oldUrl: string; newUrlPreview: string }> = [];
+
+    for (const item of allContent) {
+      let matchedInItem = false;
+      let sampleOld = '';
+      let sampleNew = '';
+
+      const checkLink = (rawUrl: string) => {
+        if (!rawUrl || !isMp4moviezUrl(rawUrl)) return;
+        if (isMp4moviezMatch(rawUrl, params)) {
+          matchedInItem = true;
+          if (!sampleOld) {
+            sampleOld = rawUrl;
+            const replaced = applyMp4moviezReplacements(rawUrl, params);
+            sampleNew = (replaced !== rawUrl) ? replaced : `(Matched: ${sampleOld})`;
+          }
+        }
+      };
+
+      if (item.downloadLink) {
+        checkLink(item.downloadLink);
+      }
+
+      if (item.downloadLinks && Array.isArray(item.downloadLinks)) {
+        for (const link of item.downloadLinks) {
+          if (link.url) {
+            checkLink(link.url);
+          }
+        }
+      }
+
+      if (matchedInItem) {
+        matches.push({
+          id: item.id,
+          title: item.title,
+          oldUrl: sampleOld,
+          newUrlPreview: sampleNew
+        });
+      }
+    }
+
+    return {
+      success: true,
+      matchCount: matches.length,
+      sampleMatches: matches.slice(0, 20)
+    };
+  } catch (error) {
+    console.error('Mp4Moviez migration preview failed:', error);
+    return {
+      success: false,
+      matchCount: 0,
+      sampleMatches: [],
+      error: error instanceof Error ? error.message : 'Preview failed.'
+    };
+  }
+}
+
+/**
+ * Dedicated Batch Migrator for Mp4Moviez Download Links
+ */
+export async function migrateMp4moviezLinksAction(params: Mp4moviezMigrationParams): Promise<{
+  success: boolean;
+  updatedCount: number;
+  error?: string;
+}> {
+  try {
+    const allContent = await getContentFromFirestore(true);
+    let updatedCount = 0;
+
+    for (const item of allContent) {
+      let hasChanges = false;
+      const updatedItem = { ...item };
+
+      if (updatedItem.downloadLink && isMp4moviezUrl(updatedItem.downloadLink)) {
+        const newUrl = applyMp4moviezReplacements(updatedItem.downloadLink, params);
+        if (newUrl !== updatedItem.downloadLink) {
+          updatedItem.downloadLink = newUrl;
+          hasChanges = true;
+        }
+      }
+
+      if (updatedItem.downloadLinks && Array.isArray(updatedItem.downloadLinks)) {
+        updatedItem.downloadLinks = updatedItem.downloadLinks.map(link => {
+          if (link.url && isMp4moviezUrl(link.url)) {
+            const newUrl = applyMp4moviezReplacements(link.url, params);
+            if (newUrl !== link.url) {
+              hasChanges = true;
+              return {
+                ...link,
+                url: newUrl
+              };
+            }
+          }
+          return link;
+        });
+      }
+
+      if (hasChanges) {
+        await addContentToFirestore(updatedItem);
+        updatedCount++;
+      }
+    }
+
+    return { success: true, updatedCount };
+  } catch (error) {
+    console.error('Mp4Moviez migration failed:', error);
+    return {
+      success: false,
+      updatedCount: 0,
+      error: error instanceof Error ? error.message : 'Migration failed.'
+    };
+  }
+}
+
 export async function migrateDownloadDomains(
   oldDomain: string,
   newDomain: string
@@ -705,9 +1093,15 @@ export async function getDownloadUrl(
       return null;
     }
 
-    // Check Filmyzilla kill switch
+    // Check Filmyzilla & Mp4Moviez kill switches
     const settings = await getSecureDownloadSettings();
-    if (!settings.filmyzillaLinksEnabled && url.toLowerCase().includes('filmyzilla')) {
+    const isFilmyzillaLink = (u: string) => u.toLowerCase().includes('filmyzilla');
+    const isMp4moviezLink = (u: string) => u.toLowerCase().includes('mp4moviez') || (u.toLowerCase().includes('dl.php') && (u.toLowerCase().includes('id=') || u.toLowerCase().includes('jio=')));
+
+    if (!settings.filmyzillaLinksEnabled && isFilmyzillaLink(url)) {
+      return null;
+    }
+    if (!settings.mp4moviezLinksEnabled && isMp4moviezLink(url)) {
       return null;
     }
 

@@ -242,6 +242,7 @@ export type SiteConfig = {
     downloadButtonDelay?: number;
     globalDownloadsEnabled?: boolean;
     filmyzillaLinksEnabled?: boolean;
+    mp4moviezLinksEnabled?: boolean;
     showLiveTvCarousel?: boolean;
     siteTitle?: string;
     titleSuffix?: string;

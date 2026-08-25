@@ -204,15 +204,22 @@ export default async function WatchPage({ params }: WatchPageProps) {
   const primaryVideoSrc = content.trailerUrl || content.youtubeTrailerUrl;
 
   // Fetch secure download settings
-  const { enabled: secureEnabled, globalEnabled, filmyzillaLinksEnabled = true } = await getSecureDownloadSettings();
+  const { enabled: secureEnabled, globalEnabled, filmyzillaLinksEnabled = true, mp4moviezLinksEnabled = true } = await getSecureDownloadSettings();
 
-  // Helper to check Filmyzilla links
+  // Helpers to check provider links
   const isFilmyzillaLink = (url?: string) => !!url && url.toLowerCase().includes('filmyzilla');
+  const isMp4moviezLink = (url?: string) => !!url && (
+    url.toLowerCase().includes('mp4moviez') ||
+    (url.toLowerCase().includes('dl.php') && (url.toLowerCase().includes('id=') || url.toLowerCase().includes('jio=')))
+  );
 
-  // Filter download links if Filmyzilla kill switch is OFF
+  // Filter download links if Filmyzilla or Mp4Moviez kill switch is OFF
   const rawDownloadLinks = content.downloadLinks || [];
   const activeDownloadLinks = rawDownloadLinks.filter(link => {
     if (!filmyzillaLinksEnabled && isFilmyzillaLink(link.url)) {
+      return false;
+    }
+    if (!mp4moviezLinksEnabled && isMp4moviezLink(link.url)) {
       return false;
     }
     return true;
@@ -220,6 +227,9 @@ export default async function WatchPage({ params }: WatchPageProps) {
 
   let activeLegacyLink = content.downloadLink;
   if (!filmyzillaLinksEnabled && isFilmyzillaLink(activeLegacyLink)) {
+    activeLegacyLink = undefined;
+  }
+  if (!mp4moviezLinksEnabled && isMp4moviezLink(activeLegacyLink)) {
     activeLegacyLink = undefined;
   }
 

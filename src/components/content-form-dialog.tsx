@@ -66,6 +66,17 @@ export function ContentFormDialog({ children, contentToEdit, onSave, currentUser
   const [fzServer, setFzServer] = useState('server_1');
   const [showFzGenerator, setShowFzGenerator] = useState(false);
 
+  /* Quick Mp4Moviez Link Generator State */
+  const [mp4Id, setMp4Id] = useState('');
+  const [mp4Domain, setMp4Domain] = useState('https://mp4moviez.rip');
+  const [mp4Path, setMp4Path] = useState('dl.php');
+  const [mp4Quality, setMp4Quality] = useState('720');
+  const [mp4Jio, setMp4Jio] = useState('yes');
+  const [mp4MovieSlug, setMp4MovieSlug] = useState('');
+  const [showMp4Generator, setShowMp4Generator] = useState(false);
+  const [mp4SelectedTitle, setMp4SelectedTitle] = useState<string>('720p HD [900MB]');
+  const [mp4CustomTitle, setMp4CustomTitle] = useState<string>('');
+
   /* Link Title Presets State */
   const [linkPresets, setLinkPresets] = useState<string[]>(DEFAULT_LINK_PRESETS);
   const [fzSelectedTitle, setFzSelectedTitle] = useState<string>('720p HD [900MB]');
@@ -319,6 +330,20 @@ export function ContentFormDialog({ children, contentToEdit, onSave, currentUser
                         type="button"
                         variant="secondary"
                         size="sm"
+                        onClick={() => {
+                          setShowMp4Generator(!showMp4Generator);
+                          if (!showMp4Generator && !mp4MovieSlug && title) {
+                            setMp4MovieSlug(title.trim().replace(/[^a-zA-Z0-9]+/g, '-'));
+                          }
+                        }}
+                        className="text-xs bg-rose-500/10 text-rose-600 hover:bg-rose-500/20 border border-rose-200"
+                      >
+                        🎬 Mp4Moviez Helper
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
                         onClick={() => setShowFzGenerator(!showFzGenerator)}
                         className="text-xs bg-orange-500/10 text-orange-600 hover:bg-orange-500/20 border border-orange-200"
                       >
@@ -329,6 +354,121 @@ export function ContentFormDialog({ children, contentToEdit, onSave, currentUser
                       </Button>
                     </div>
                   </div>
+
+                  {/* Quick Mp4Moviez Link Generator Box */}
+                  {showMp4Generator && (
+                    <div className="mb-4 p-3 rounded-lg border border-rose-200 bg-rose-50/50 space-y-3 text-xs">
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-rose-900 flex items-center gap-1">
+                          🎬 Mp4Moviez Link Builder (dl.php)
+                        </span>
+                        <span className="text-[10px] text-rose-700">Paste ID & title to auto-generate Mp4Moviez link</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <Label className="text-[10px] text-muted-foreground">Download ID (e.g. 29568)</Label>
+                          <Input
+                            placeholder="e.g. 29568"
+                            value={mp4Id}
+                            onChange={(e) => setMp4Id(e.target.value)}
+                            className="h-7 text-xs border-rose-200"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-[10px] text-muted-foreground">Quality (q parameter)</Label>
+                          <Input
+                            placeholder="720"
+                            value={mp4Quality}
+                            onChange={(e) => setMp4Quality(e.target.value)}
+                            className="h-7 text-xs border-rose-200"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-[10px] text-muted-foreground">Domain</Label>
+                          <Input
+                            placeholder="https://mp4moviez.rip"
+                            value={mp4Domain}
+                            onChange={(e) => setMp4Domain(e.target.value)}
+                            className="h-7 text-xs border-rose-200"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-[10px] text-muted-foreground">Path (dl.php)</Label>
+                          <Input
+                            placeholder="dl.php"
+                            value={mp4Path}
+                            onChange={(e) => setMp4Path(e.target.value)}
+                            className="h-7 text-xs border-rose-200"
+                          />
+                        </div>
+                        <div className="col-span-2">
+                          <Label className="text-[10px] text-muted-foreground">Movie Title Slug</Label>
+                          <Input
+                            placeholder="e.g. The-Exorcism-of-God-(2021)-Hindi-Dubbed-BluRay"
+                            value={mp4MovieSlug}
+                            onChange={(e) => setMp4MovieSlug(e.target.value)}
+                            className="h-7 text-xs border-rose-200"
+                          />
+                        </div>
+                        <div className="col-span-2 pt-1">
+                          <Label className="text-[10px] font-semibold text-rose-950 flex items-center justify-between mb-1">
+                            <span>Link Title / Label Preset</span>
+                            <span className="text-[9px] text-muted-foreground font-normal">Select title for generated link</span>
+                          </Label>
+                          <div className="space-y-1.5">
+                            <select
+                              value={mp4SelectedTitle}
+                              onChange={(e) => setMp4SelectedTitle(e.target.value)}
+                              className="h-7 text-xs rounded-md border border-rose-300 bg-background px-2 text-foreground focus:outline-none focus:ring-1 focus:ring-rose-500 w-full font-medium"
+                            >
+                              {linkPresets.map((preset, idx) => (
+                                <option key={idx} value={preset}>{preset}</option>
+                              ))}
+                              <option value="__CUSTOM__">✨ + Custom Title...</option>
+                            </select>
+                            {mp4SelectedTitle === '__CUSTOM__' && (
+                              <Input
+                                placeholder="e.g. 720p HD [Fast Direct Link]"
+                                value={mp4CustomTitle}
+                                onChange={(e) => setMp4CustomTitle(e.target.value)}
+                                className="h-7 text-xs border-rose-200"
+                              />
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <Button
+                        type="button"
+                        size="sm"
+                        className="w-full h-7 bg-rose-600 hover:bg-rose-700 text-white font-medium text-xs mt-1"
+                        onClick={() => {
+                          if (!mp4Id.trim()) {
+                            toast({ variant: 'destructive', title: 'Error', description: 'Please enter Mp4Moviez Download ID.' });
+                            return;
+                          }
+                          const cleanDom = mp4Domain.trim().replace(/\/+$/, '');
+                          const cleanPth = mp4Path.trim().replace(/^\/+|\/+$/g, '');
+                          const cleanMovieId = mp4Id.trim();
+                          const cleanQ = mp4Quality.trim() || '720';
+                          const cleanJio = mp4Jio.trim() || 'yes';
+                          const cleanSlug = mp4MovieSlug.trim() || (title ? title.trim().replace(/[^a-zA-Z0-9]+/g, '-') : 'Movie');
+                          const finalGeneratedUrl = `${cleanDom}/${cleanPth}?id=${cleanMovieId}&q=${cleanQ}&jio=${cleanJio}&title=${cleanSlug}`;
+                          const finalTitle = mp4SelectedTitle === '__CUSTOM__'
+                            ? (mp4CustomTitle.trim() || 'Download HD (Mp4Moviez)')
+                            : mp4SelectedTitle;
+
+                          setDownloadLinks(prev => [
+                            ...prev,
+                            { label: finalTitle, url: finalGeneratedUrl }
+                          ]);
+                          toast({ title: 'Mp4Moviez Link Added!', description: `${finalTitle} ➔ ${finalGeneratedUrl}` });
+                          setMp4Id('');
+                        }}
+                      >
+                        + Generate & Add Mp4Moviez Link
+                      </Button>
+                    </div>
+                  )}
 
                   {/* Quick Filmyzilla ID Generator Box */}
                   {showFzGenerator && (

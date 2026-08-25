@@ -15,7 +15,7 @@ import { ContentFormDialog } from './content-form-dialog';
 import { Input } from './ui/input';
 import { Textarea } from './ui/textarea';
 import { Label } from './ui/label';
-import { getManuallyAddedContent, getLogoText, updateLogoText, getPaginationLimit, updatePaginationLimit, syncContentMetadata, getSecureDownloadSettings, updateSecureDownloadSettings, migrateDownloadDomains, migrateDownloadLinks, previewLinkMigration, scanDatabaseDownloadLinks, getContentRequestsAction, updateContentRequestStatusAction, deleteContentRequestAction, addContent, getDownloadLinkPresets, updateDownloadLinkPresets, toggleFilmyzillaLinksAction, getSiteLanguages, updateSiteLanguages, resetSiteLanguages, getHeaderScriptsAction, updateHeaderScriptsAction } from '@/app/admin/actions';
+import { getManuallyAddedContent, getLogoText, updateLogoText, getPaginationLimit, updatePaginationLimit, syncContentMetadata, getSecureDownloadSettings, updateSecureDownloadSettings, migrateDownloadDomains, migrateDownloadLinks, previewLinkMigration, scanDatabaseDownloadLinks, scanMp4moviezLinksAction, previewMp4moviezMigrationAction, migrateMp4moviezLinksAction, getContentRequestsAction, updateContentRequestStatusAction, deleteContentRequestAction, addContent, getDownloadLinkPresets, updateDownloadLinkPresets, toggleFilmyzillaLinksAction, toggleMp4moviezLinksAction, getSiteLanguages, updateSiteLanguages, resetSiteLanguages, getHeaderScriptsAction, updateHeaderScriptsAction } from '@/app/admin/actions';
 import {
   getContentFromFirestore,
   addContentToFirestore,
@@ -111,6 +111,7 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
 
   const [globalDownloadsEnabled, setGlobalDownloadsEnabled] = useState(true);
   const [filmyzillaLinksEnabled, setFilmyzillaLinksEnabled] = useState(true);
+  const [mp4moviezLinksEnabled, setMp4moviezLinksEnabled] = useState(true);
   const [logoText, setLogoText] = useState('');
   const [paginationLimit, setPaginationLimit] = useState(20);
   const [secureDownloadsEnabled, setSecureDownloadsEnabled] = useState(false);
@@ -151,6 +152,131 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
     totalMoviesWithLinks: number;
   } | null>(null);
   const [isScanningDb, setIsScanningDb] = useState(false);
+
+  // Dedicated Mp4Moviez Migration Tool State (100% isolated)
+  const [mp4MigrationMode, setMp4MigrationMode] = useState<'domain' | 'path' | 'full' | 'custom'>('domain');
+  const [mp4OldDomain, setMp4OldDomain] = useState('mp4moviez.rip');
+  const [mp4NewDomain, setMp4NewDomain] = useState('');
+  const [mp4OldPath, setMp4OldPath] = useState('dl.php');
+  const [mp4NewPath, setMp4NewPath] = useState('');
+  const [mp4OldCustom, setMp4OldCustom] = useState('');
+  const [mp4NewCustom, setMp4NewCustom] = useState('');
+  const [isMp4Migrating, setIsMp4Migrating] = useState(false);
+  const [isMp4Previewing, setIsMp4Previewing] = useState(false);
+  const [mp4PreviewResult, setMp4PreviewResult] = useState<{
+    matchCount: number;
+    sampleMatches: Array<{ id: string | number; title: string; oldUrl: string; newUrlPreview: string }>;
+  } | null>(null);
+  const [mp4ScanData, setMp4ScanData] = useState<{
+    domains: Array<{ domain: string; count: number }>;
+    pathSegments: Array<{ segment: string; count: number }>;
+    totalLinksCount: number;
+    totalMoviesCount: number;
+  } | null>(null);
+  const [isMp4Scanning, setIsMp4Scanning] = useState(false);
+
+  const handleScanMp4Database = async () => {
+    setIsMp4Scanning(true);
+    try {
+      const res = await scanMp4moviezLinksAction();
+      if (res.success) {
+        setMp4ScanData({
+          domains: res.domains,
+          pathSegments: res.pathSegments,
+          totalLinksCount: res.totalLinksCount,
+          totalMoviesCount: res.totalMoviesCount
+        });
+        toast({
+          title: 'Mp4Moviez Scan Completed!',
+          description: `Found ${res.totalLinksCount} Mp4Moviez links across ${res.totalMoviesCount} movies in database.`
+        });
+      } else {
+        toast({ variant: 'destructive', title: 'Mp4Moviez Scan Error', description: res.error || 'Failed to scan database' });
+      }
+    } catch {
+      toast({ variant: 'destructive', title: 'Scan Error', description: 'Failed to inspect Mp4Moviez download links.' });
+    } finally {
+      setIsMp4Scanning(false);
+    }
+  };
+
+  const handlePreviewMp4Migration = async () => {
+    setIsMp4Previewing(true);
+    try {
+      const params = {
+        mode: mp4MigrationMode,
+        oldDomain: mp4OldDomain.trim(),
+        newDomain: mp4NewDomain.trim(),
+        oldPath: mp4OldPath.trim(),
+        newPath: mp4NewPath.trim(),
+        oldCustom: mp4OldCustom.trim(),
+        newCustom: mp4NewCustom.trim()
+      };
+      const res = await previewMp4moviezMigrationAction(params);
+      if (res.success) {
+        setMp4PreviewResult({
+          matchCount: res.matchCount,
+          sampleMatches: res.sampleMatches
+        });
+        toast({
+          title: 'Mp4Moviez Preview Complete',
+          description: `Identified ${res.matchCount} matching Mp4Moviez item(s) in database.`
+        });
+      } else {
+        toast({ variant: 'destructive', title: 'Preview Error', description: res.error || 'Preview failed.' });
+      }
+    } catch {
+      toast({ variant: 'destructive', title: 'Error', description: 'Failed to preview Mp4Moviez migration.' });
+    } finally {
+      setIsMp4Previewing(false);
+    }
+  };
+
+  const handleExecuteMp4Migration = async () => {
+    setIsMp4Migrating(true);
+    try {
+      const params = {
+        mode: mp4MigrationMode,
+        oldDomain: mp4OldDomain.trim(),
+        newDomain: mp4NewDomain.trim(),
+        oldPath: mp4OldPath.trim(),
+        newPath: mp4NewPath.trim(),
+        oldCustom: mp4OldCustom.trim(),
+        newCustom: mp4NewCustom.trim()
+      };
+      const res = await migrateMp4moviezLinksAction(params);
+      if (res.success) {
+        toast({
+          title: 'Mp4Moviez Migration Successful!',
+          description: `Updated ${res.updatedCount} Mp4Moviez link(s) safely in database.`
+        });
+        if (mp4MigrationMode === 'domain' && mp4NewDomain.trim()) {
+          setMp4OldDomain(mp4NewDomain.trim());
+          setMp4NewDomain('');
+        } else if (mp4MigrationMode === 'path' && mp4NewPath.trim()) {
+          setMp4OldPath(mp4NewPath.trim());
+          setMp4NewPath('');
+        } else if (mp4MigrationMode === 'full') {
+          if (mp4NewDomain.trim()) setMp4OldDomain(mp4NewDomain.trim());
+          if (mp4NewPath.trim()) setMp4OldPath(mp4NewPath.trim());
+          setMp4NewDomain('');
+          setMp4NewPath('');
+        } else if (mp4MigrationMode === 'custom') {
+          setMp4OldCustom('');
+          setMp4NewCustom('');
+        }
+        setMp4PreviewResult(null);
+        await handleScanMp4Database();
+        await fetchAdminContent();
+      } else {
+        toast({ variant: 'destructive', title: 'Migration Failed', description: res.error || 'Could not migrate Mp4Moviez links.' });
+      }
+    } catch (err) {
+      toast({ variant: 'destructive', title: 'Error', description: err instanceof Error ? err.message : 'Failed to execute Mp4Moviez migration.' });
+    } finally {
+      setIsMp4Migrating(false);
+    }
+  };
 
   const handleScanDatabase = async () => {
     setIsScanningDb(true);
@@ -209,6 +335,7 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
       setDownloadDelay(secureSettings.delay);
       setGlobalDownloadsEnabled(secureSettings.globalEnabled);
       setFilmyzillaLinksEnabled(secureSettings.filmyzillaLinksEnabled !== undefined ? secureSettings.filmyzillaLinksEnabled : true);
+      setMp4moviezLinksEnabled(secureSettings.mp4moviezLinksEnabled !== undefined ? secureSettings.mp4moviezLinksEnabled : true);
       setLinkPresets(presets);
       setSiteLanguages(langs);
       // Fetch Site Config for other settings
@@ -479,7 +606,7 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
       const [logoResult, limitResult, secureResult] = await Promise.all([
         updateLogoText(logoText),
         updatePaginationLimit(paginationLimit),
-        updateSecureDownloadSettings(secureDownloadsEnabled, downloadDelay, globalDownloadsEnabled, filmyzillaLinksEnabled)
+        updateSecureDownloadSettings(secureDownloadsEnabled, downloadDelay, globalDownloadsEnabled, filmyzillaLinksEnabled, mp4moviezLinksEnabled)
       ]);
 
       await Promise.all([
@@ -488,6 +615,7 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
           downloadButtonDelay: downloadDelay,
           globalDownloadsEnabled,
           filmyzillaLinksEnabled,
+          mp4moviezLinksEnabled,
           showLiveTvCarousel,
           logoText,
           paginationLimit,
@@ -1017,6 +1145,39 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
                       />
                     </div>
 
+                    <div className="flex items-center justify-between space-x-2 border p-4 rounded-lg bg-rose-50/60 dark:bg-rose-950/20 border-rose-300">
+                      <div className="space-y-0.5">
+                        <Label htmlFor="mp4moviez-downloads-switch" className="text-base font-medium text-rose-950 dark:text-rose-200 flex items-center gap-2">
+                          <span>🚨 Mp4Moviez Links Kill Switch</span>
+                          <span className={`text-xs px-2 py-0.5 rounded font-bold ${
+                            mp4moviezLinksEnabled ? 'bg-emerald-200 text-emerald-900' : 'bg-red-200 text-red-900'
+                          }`}>
+                            {mp4moviezLinksEnabled ? '🟢 Links ON' : '🔴 Links HIDDEN'}
+                          </span>
+                        </Label>
+                        <p className="text-sm text-rose-800 dark:text-rose-300">
+                          {mp4moviezLinksEnabled
+                            ? 'Turn OFF to hide Mp4Moviez download links (mp4moviez.rip, dl.php) from all watch pages (other links will still show).'
+                            : 'Mp4Moviez links are currently HIDDEN. Only non-Mp4Moviez links are displayed on the site.'}
+                        </p>
+                      </div>
+                      <Switch
+                        id="mp4moviez-downloads-switch"
+                        checked={mp4moviezLinksEnabled}
+                        onCheckedChange={async (checked) => {
+                          setMp4moviezLinksEnabled(checked);
+                          await toggleMp4moviezLinksAction(checked);
+                          toast({
+                            title: checked ? 'Mp4Moviez Links ON' : 'Mp4Moviez Links Hidden',
+                            description: checked
+                              ? 'Mp4Moviez download links are now visible on site.'
+                              : 'Mp4Moviez links are now hidden. Other download links remain visible.',
+                          });
+                        }}
+                        disabled={isSavingSettings}
+                      />
+                    </div>
+
                     <div className="flex items-center justify-between space-x-2 border p-4 rounded-lg bg-blue-50/50">
                       <div className="space-y-0.5">
                         <Label htmlFor="live-carousel" className="text-base font-medium text-blue-900">Show Live TV Carousel</Label>
@@ -1377,7 +1538,7 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
               </Card>
 
               {/* Filmyzilla Kill Switch Card */}
-              <Card className={`mb-8 border transition-all ${
+              <Card className={`mb-4 border transition-all ${
                 filmyzillaLinksEnabled
                   ? 'border-emerald-300 bg-emerald-50/40 dark:bg-emerald-950/20'
                   : 'border-red-400 bg-red-100/70 dark:bg-red-950/30 shadow-md'
@@ -1428,6 +1589,540 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
                     </div>
                   </div>
                 </CardHeader>
+              </Card>
+
+              {/* Mp4Moviez Kill Switch Card */}
+              <Card className={`mb-8 border transition-all ${
+                mp4moviezLinksEnabled
+                  ? 'border-emerald-300 bg-emerald-50/40 dark:bg-emerald-950/20'
+                  : 'border-red-400 bg-red-100/70 dark:bg-red-950/30 shadow-md'
+              }`}>
+                <CardHeader className="pb-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <CardTitle className="flex items-center text-foreground text-lg">
+                          🎬 Mp4Moviez Download Links Kill Switch
+                        </CardTitle>
+                        <Badge
+                          variant={mp4moviezLinksEnabled ? "outline" : "destructive"}
+                          className={mp4moviezLinksEnabled ? "bg-emerald-100 text-emerald-800 border-emerald-300 font-bold" : "font-bold animate-pulse"}
+                        >
+                          {mp4moviezLinksEnabled ? '🟢 ON (Showing All Links)' : '🔴 OFF (Mp4Moviez Links HIDDEN)'}
+                        </Badge>
+                      </div>
+                      <CardDescription className="text-xs text-muted-foreground leading-relaxed">
+                        {mp4moviezLinksEnabled
+                          ? 'Mp4Moviez download links (mp4moviez.rip, dl.php) are currently ACTIVE and visible on all watch pages.'
+                          : 'Mp4Moviez download links are currently HIDDEN & DISABLED site-wide. Other download links (Filmyzilla, GDrive, Terabox, Mega, etc.) remain fully visible and downloadable!'}
+                      </CardDescription>
+                    </div>
+                    <div className="flex items-center gap-3 shrink-0 p-3 bg-background/80 rounded-xl border border-border/60">
+                      <Switch
+                        id="mp4moviez-kill-switch-card"
+                        checked={mp4moviezLinksEnabled}
+                        onCheckedChange={async (checked) => {
+                          setMp4moviezLinksEnabled(checked);
+                          const res = await toggleMp4moviezLinksAction(checked);
+                          if (res.success) {
+                            toast({
+                              title: checked ? 'Mp4Moviez Links ON' : 'Mp4Moviez Links HIDDEN',
+                              description: checked
+                                ? 'All Mp4Moviez download links are now visible on the website.'
+                                : 'Mp4Moviez download links are now hidden site-wide. Other links remain visible.',
+                            });
+                          } else {
+                            toast({ variant: 'destructive', title: 'Error', description: 'Failed to update Mp4Moviez kill switch state.' });
+                            setMp4moviezLinksEnabled(!checked);
+                          }
+                        }}
+                      />
+                      <Label htmlFor="mp4moviez-kill-switch-card" className="font-bold text-sm cursor-pointer">
+                        {mp4moviezLinksEnabled ? 'Kill Switch OFF' : 'Kill Switch ON'}
+                      </Label>
+                    </div>
+                  </div>
+                </CardHeader>
+              </Card>
+
+              {/* 🎬 DEDICATED MP4MOVIEZ DOMAIN & LINK MIGRATION TOOL */}
+              <Card className="mb-8 border-rose-300 bg-rose-50/40 dark:bg-rose-950/20 shadow-sm">
+                <CardHeader className="pb-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div className="space-y-1">
+                      <CardTitle className="flex items-center text-rose-950 dark:text-rose-300 text-lg font-bold">
+                        <Globe className="mr-2 h-5 w-5 text-rose-600" />
+                        🎬 Dedicated Mp4Moviez Domain & Link Migration Tool
+                      </CardTitle>
+                      <CardDescription className="text-rose-900/80 dark:text-rose-300/80 text-xs">
+                        Completely isolated tool specifically built for Mp4Moviez download links (<code className="bg-rose-200/70 dark:bg-rose-900/70 px-1 py-0.5 rounded text-[11px] font-mono">https://mp4moviez.rip/dl.php?id=...</code>). <strong>Filmyzilla and other links are 100% untouched.</strong>
+                      </CardDescription>
+                    </div>
+                    <Badge variant="outline" className="border-rose-400 bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-200 text-xs font-semibold shrink-0">
+                      🔒 100% Mp4Moviez Isolated
+                    </Badge>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-5">
+                    {/* Security & Isolation Notice */}
+                    <Alert variant="default" className="border-rose-300 bg-rose-100/70 dark:bg-rose-900/30">
+                      <AlertTitle className="text-rose-950 dark:text-rose-200 font-semibold text-xs flex items-center gap-1.5">
+                        🛡️ Dedicated Scope Protection
+                      </AlertTitle>
+                      <AlertDescription className="text-rose-900 dark:text-rose-300 text-xs">
+                        This dedicated migrator only matches and changes URLs belonging to Mp4Moviez. Any other downloading sources (Filmyzilla, GDrive, Terabox, Mega) are completely ignored and safe.
+                      </AlertDescription>
+                    </Alert>
+
+                    {/* Dedicated Mp4Moviez DB Scanner Panel */}
+                    <div className="p-4 rounded-lg border border-rose-300 bg-rose-50/80 dark:bg-rose-950/30 space-y-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-rose-200/80 pb-2">
+                        <div>
+                          <h4 className="text-sm font-bold text-rose-950 dark:text-rose-200 flex items-center gap-1.5">
+                            🔍 Scan Database for Mp4Moviez Links
+                          </h4>
+                          <p className="text-xs text-rose-800 dark:text-rose-300">
+                            Inspect your Firestore movies for active Mp4Moviez domains & dl.php endpoints.
+                          </p>
+                        </div>
+                        <Button
+                          type="button"
+                          size="sm"
+                          disabled={isMp4Scanning}
+                          onClick={handleScanMp4Database}
+                          className="bg-rose-600 hover:bg-rose-700 text-white font-medium text-xs shadow-sm"
+                        >
+                          {isMp4Scanning ? (
+                            <>
+                              <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                              Scanning Mp4Moviez...
+                            </>
+                          ) : (
+                            <>
+                              <Search className="mr-1.5 h-3.5 w-3.5" />
+                              Scan Mp4Moviez DB
+                            </>
+                          )}
+                        </Button>
+                      </div>
+
+                      {mp4ScanData && (
+                        <div className="space-y-3 text-xs pt-1">
+                          <div className="flex flex-wrap gap-4 text-rose-950 dark:text-rose-200 font-medium bg-rose-100/80 dark:bg-rose-900/40 p-2.5 rounded border border-rose-200">
+                            <span>🎬 Movies with Mp4Moviez Links: <strong>{mp4ScanData.totalMoviesCount}</strong></span>
+                            <span>🔗 Total Mp4Moviez Links: <strong>{mp4ScanData.totalLinksCount}</strong></span>
+                          </div>
+
+                          {/* Detected Mp4Moviez Domains */}
+                          {mp4ScanData.domains.length > 0 ? (
+                            <div className="space-y-1.5">
+                              <div className="font-semibold text-rose-950 dark:text-rose-300">
+                                Active Mp4Moviez Domains (click to select as source domain):
+                              </div>
+                              <div className="flex flex-wrap gap-1.5">
+                                {mp4ScanData.domains.map((d, i) => (
+                                  <Badge
+                                    key={i}
+                                    variant="outline"
+                                    onClick={() => {
+                                      setMp4MigrationMode('domain');
+                                      setMp4OldDomain(d.domain);
+                                      setMp4PreviewResult(null);
+                                    }}
+                                    className="cursor-pointer hover:bg-rose-200 dark:hover:bg-rose-900 bg-background border-rose-300 text-rose-950 dark:text-rose-200 font-mono text-[11px] py-1 px-2.5 flex items-center gap-1.5"
+                                  >
+                                    🌐 {d.domain} <span className="bg-rose-200 dark:bg-rose-800 text-rose-900 dark:text-rose-100 text-[10px] rounded px-1.5 py-0.2 font-bold">{d.count}</span>
+                                  </Badge>
+                                ))}
+                              </div>
+                            </div>
+                          ) : (
+                            <p className="text-xs text-rose-800 dark:text-rose-400 italic">
+                              No Mp4Moviez domains found in database yet.
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Mode Selector Tabs */}
+                    <div className="space-y-3">
+                      <Label className="text-xs font-bold text-rose-950 dark:text-rose-200">Select Mp4Moviez Migration Target:</Label>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        <Button
+                          type="button"
+                          variant={mp4MigrationMode === 'domain' ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => {
+                            setMp4MigrationMode('domain');
+                            setMp4PreviewResult(null);
+                          }}
+                          className={`text-xs font-semibold ${mp4MigrationMode === 'domain' ? 'bg-rose-600 hover:bg-rose-700 text-white' : 'border-rose-200 text-rose-900 dark:text-rose-300'}`}
+                        >
+                          <Globe className="mr-1.5 h-3.5 w-3.5" />
+                          1. Domain Migration
+                        </Button>
+                        <Button
+                          type="button"
+                          variant={mp4MigrationMode === 'path' ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => {
+                            setMp4MigrationMode('path');
+                            setMp4PreviewResult(null);
+                          }}
+                          className={`text-xs font-semibold ${mp4MigrationMode === 'path' ? 'bg-rose-600 hover:bg-rose-700 text-white' : 'border-rose-200 text-rose-900 dark:text-rose-300'}`}
+                        >
+                          <Code className="mr-1.5 h-3.5 w-3.5" />
+                          2. dl.php Path
+                        </Button>
+                        <Button
+                          type="button"
+                          variant={mp4MigrationMode === 'full' ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => {
+                            setMp4MigrationMode('full');
+                            setMp4PreviewResult(null);
+                          }}
+                          className={`text-xs font-semibold ${mp4MigrationMode === 'full' ? 'bg-rose-600 hover:bg-rose-700 text-white' : 'border-rose-200 text-rose-900 dark:text-rose-300'}`}
+                        >
+                          <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+                          3. Full Migration
+                        </Button>
+                        <Button
+                          type="button"
+                          variant={mp4MigrationMode === 'custom' ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => {
+                            setMp4MigrationMode('custom');
+                            setMp4PreviewResult(null);
+                          }}
+                          className={`text-xs font-semibold ${mp4MigrationMode === 'custom' ? 'bg-rose-600 hover:bg-rose-700 text-white' : 'border-rose-200 text-rose-900 dark:text-rose-300'}`}
+                        >
+                          <Tag className="mr-1.5 h-3.5 w-3.5" />
+                          4. Custom Text
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* Mode 1: Domain Migration Form */}
+                    {mp4MigrationMode === 'domain' && (
+                      <div className="p-4 rounded-lg border border-rose-200 bg-background/80 space-y-4">
+                        <div className="text-xs text-rose-950 dark:text-rose-200 font-medium">
+                          Change Mp4Moviez hosting domain (e.g. from <code className="bg-rose-100 dark:bg-rose-900 px-1 py-0.5 rounded font-mono">mp4moviez.rip</code> to <code className="bg-rose-100 dark:bg-rose-900 px-1 py-0.5 rounded font-mono">mp4moviez.fun</code>) while strictly keeping the parameters (<code className="bg-rose-100 dark:bg-rose-900 px-1 py-0.5 rounded font-mono">?id=29568&amp;q=720&amp;title=...</code>) intact.
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div className="space-y-1.5">
+                            <Label htmlFor="mp4OldDomainInput" className="text-rose-950 dark:text-rose-200 font-medium text-xs">
+                              Current Mp4Moviez Domain(s)
+                            </Label>
+                            <Input
+                              id="mp4OldDomainInput"
+                              value={mp4OldDomain}
+                              onChange={(e) => {
+                                setMp4OldDomain(e.target.value);
+                                setMp4PreviewResult(null);
+                              }}
+                              placeholder="e.g. mp4moviez.rip"
+                              disabled={isMp4Migrating || isMp4Previewing}
+                              className="border-rose-300 font-mono text-xs"
+                            />
+                            <p className="text-[11px] text-muted-foreground">Comma or newline separated for multiple domains.</p>
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label htmlFor="mp4NewDomainInput" className="text-rose-950 dark:text-rose-200 font-medium text-xs">
+                              New Target Mp4Moviez Domain
+                            </Label>
+                            <Input
+                              id="mp4NewDomainInput"
+                              value={mp4NewDomain}
+                              onChange={(e) => {
+                                setMp4NewDomain(e.target.value);
+                                setMp4PreviewResult(null);
+                              }}
+                              placeholder="e.g. mp4moviez.fun"
+                              disabled={isMp4Migrating || isMp4Previewing}
+                              className="border-rose-300 font-mono text-xs"
+                            />
+                            <p className="text-[11px] text-muted-foreground">The new domain hostname to replace old domain with.</p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Mode 2: dl.php Path Migration Form */}
+                    {mp4MigrationMode === 'path' && (
+                      <div className="p-4 rounded-lg border border-rose-200 bg-background/80 space-y-4">
+                        <div className="text-xs text-rose-950 dark:text-rose-200 font-medium">
+                          Update the endpoint path segment (e.g. from <code className="bg-rose-100 dark:bg-rose-900 px-1 py-0.5 rounded font-mono">dl.php</code> to <code className="bg-rose-100 dark:bg-rose-900 px-1 py-0.5 rounded font-mono">download.php</code>) inside Mp4Moviez URLs.
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div className="space-y-1.5">
+                            <Label htmlFor="mp4OldPathInput" className="text-rose-950 dark:text-rose-200 font-medium text-xs">
+                              Current Path / Endpoint
+                            </Label>
+                            <Input
+                              id="mp4OldPathInput"
+                              value={mp4OldPath}
+                              onChange={(e) => {
+                                setMp4OldPath(e.target.value);
+                                setMp4PreviewResult(null);
+                              }}
+                              placeholder="e.g. dl.php"
+                              disabled={isMp4Migrating || isMp4Previewing}
+                              className="border-rose-300 font-mono text-xs"
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label htmlFor="mp4NewPathInput" className="text-rose-950 dark:text-rose-200 font-medium text-xs">
+                              New Target Path / Endpoint
+                            </Label>
+                            <Input
+                              id="mp4NewPathInput"
+                              value={mp4NewPath}
+                              onChange={(e) => {
+                                setMp4NewPath(e.target.value);
+                                setMp4PreviewResult(null);
+                              }}
+                              placeholder="e.g. download.php or dl.php"
+                              disabled={isMp4Migrating || isMp4Previewing}
+                              className="border-rose-300 font-mono text-xs"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Mode 3: Full Migration Form (Domain + Path) */}
+                    {mp4MigrationMode === 'full' && (
+                      <div className="p-4 rounded-lg border border-rose-200 bg-background/80 space-y-4">
+                        <div className="text-xs text-rose-950 dark:text-rose-200 font-medium">
+                          Simultaneously migrate both the domain name AND the endpoint path in a single atomic step.
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div className="space-y-1.5">
+                            <Label htmlFor="mp4FullOldDomain" className="text-rose-950 dark:text-rose-200 font-medium text-xs">Current Domain</Label>
+                            <Input
+                              id="mp4FullOldDomain"
+                              value={mp4OldDomain}
+                              onChange={(e) => {
+                                setMp4OldDomain(e.target.value);
+                                setMp4PreviewResult(null);
+                              }}
+                              placeholder="e.g. mp4moviez.rip"
+                              className="border-rose-300 font-mono text-xs"
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label htmlFor="mp4FullNewDomain" className="text-rose-950 dark:text-rose-200 font-medium text-xs">New Target Domain</Label>
+                            <Input
+                              id="mp4FullNewDomain"
+                              value={mp4NewDomain}
+                              onChange={(e) => {
+                                setMp4NewDomain(e.target.value);
+                                setMp4PreviewResult(null);
+                              }}
+                              placeholder="e.g. mp4moviez.fun"
+                              className="border-rose-300 font-mono text-xs"
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label htmlFor="mp4FullOldPath" className="text-rose-950 dark:text-rose-200 font-medium text-xs">Current Path</Label>
+                            <Input
+                              id="mp4FullOldPath"
+                              value={mp4OldPath}
+                              onChange={(e) => {
+                                setMp4OldPath(e.target.value);
+                                setMp4PreviewResult(null);
+                              }}
+                              placeholder="e.g. dl.php"
+                              className="border-rose-300 font-mono text-xs"
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label htmlFor="mp4FullNewPath" className="text-rose-950 dark:text-rose-200 font-medium text-xs">New Target Path</Label>
+                            <Input
+                              id="mp4FullNewPath"
+                              value={mp4NewPath}
+                              onChange={(e) => {
+                                setMp4NewPath(e.target.value);
+                                setMp4PreviewResult(null);
+                              }}
+                              placeholder="e.g. download.php"
+                              className="border-rose-300 font-mono text-xs"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Mode 4: Custom Pattern Replace */}
+                    {mp4MigrationMode === 'custom' && (
+                      <div className="p-4 rounded-lg border border-rose-200 bg-background/80 space-y-4">
+                        <div className="text-xs text-rose-950 dark:text-rose-200 font-medium">
+                          Replace specific custom query strings or parameters (e.g. <code className="bg-rose-100 dark:bg-rose-900 px-1 py-0.5 rounded font-mono">&amp;jio=yes</code> ➔ <code className="bg-rose-100 dark:bg-rose-900 px-1 py-0.5 rounded font-mono">&amp;jio=no</code>) strictly inside Mp4Moviez URLs only.
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div className="space-y-1.5">
+                            <Label htmlFor="mp4OldCustom" className="text-rose-950 dark:text-rose-200 font-medium text-xs">Find String in Mp4Moviez URLs</Label>
+                            <Input
+                              id="mp4OldCustom"
+                              value={mp4OldCustom}
+                              onChange={(e) => {
+                                setMp4OldCustom(e.target.value);
+                                setMp4PreviewResult(null);
+                              }}
+                              placeholder="e.g. &jio=yes"
+                              className="border-rose-300 font-mono text-xs"
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label htmlFor="mp4NewCustom" className="text-rose-950 dark:text-rose-200 font-medium text-xs">Replace With Target</Label>
+                            <Input
+                              id="mp4NewCustom"
+                              value={mp4NewCustom}
+                              onChange={(e) => {
+                                setMp4NewCustom(e.target.value);
+                                setMp4PreviewResult(null);
+                              }}
+                              placeholder="e.g. &jio=no"
+                              className="border-rose-300 font-mono text-xs"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Mp4Moviez Preview Results Panel */}
+                    {mp4PreviewResult && (
+                      <div className="p-4 rounded-lg border border-rose-300 bg-background space-y-3">
+                        <div className="flex items-center justify-between border-b pb-2">
+                          <span className="font-semibold text-sm text-rose-950 dark:text-rose-300">
+                            Mp4Moviez Scan Results ({mp4MigrationMode.toUpperCase()} Mode):{' '}
+                            <span className="text-rose-600 font-bold">{mp4PreviewResult.matchCount} items found</span>
+                          </span>
+                        </div>
+                        {mp4PreviewResult.sampleMatches.length > 0 ? (
+                          <div className="space-y-2 text-xs">
+                            <p className="text-muted-foreground font-medium">Sample Preview Transformations:</p>
+                            <div className="max-h-48 overflow-y-auto space-y-2 pr-1">
+                              {mp4PreviewResult.sampleMatches.map((m, idx) => (
+                                <div key={idx} className="p-2.5 rounded bg-muted/60 border font-mono space-y-1">
+                                  <div className="font-sans font-semibold text-foreground">{m.title}</div>
+                                  <div className="text-destructive truncate">BEFORE: {m.oldUrl}</div>
+                                  <div className="text-emerald-600 dark:text-emerald-400 truncate">AFTER: {m.newUrlPreview}</div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ) : (
+                          <p className="text-xs text-muted-foreground">No Mp4Moviez download links in database currently match your criteria.</p>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Action Buttons */}
+                    <div className="flex flex-wrap gap-3 items-center pt-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        disabled={isMp4Previewing || isMp4Migrating}
+                        onClick={handlePreviewMp4Migration}
+                        className="border-rose-300 text-rose-950 dark:text-rose-300 hover:bg-rose-100"
+                      >
+                        {isMp4Previewing ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Scanning Mp4Moviez Links...
+                          </>
+                        ) : (
+                          <>
+                            <Search className="mr-2 h-4 w-4 text-rose-600" />
+                            Scan & Preview Mp4Moviez Migration
+                          </>
+                        )}
+                      </Button>
+
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            variant="default"
+                            disabled={isMp4Migrating}
+                            className="bg-rose-600 hover:bg-rose-700 text-white font-semibold"
+                          >
+                            {isMp4Migrating ? (
+                              <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                Migrating Mp4Moviez...
+                              </>
+                            ) : (
+                              <>
+                                <RefreshCw className="mr-2 h-4 w-4" />
+                                Execute Mp4Moviez Migration
+                              </>
+                            )}
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle className="text-rose-950 dark:text-rose-200">
+                              Confirm Mp4Moviez Migration ({mp4MigrationMode.toUpperCase()} Mode)
+                            </AlertDialogTitle>
+                            <AlertDialogDescription asChild>
+                              <div className="space-y-2 text-sm text-muted-foreground">
+                                <p>You are about to execute migration exclusively on <strong>Mp4Moviez download links</strong> across your database:</p>
+                                <div className="bg-muted p-3 rounded-md space-y-1 font-mono text-xs break-all">
+                                  <p><strong>Mode:</strong> {mp4MigrationMode.toUpperCase()}</p>
+                                  {mp4MigrationMode === 'domain' && (
+                                    <>
+                                      <p><strong>Old Domain:</strong> {mp4OldDomain || '(none)'}</p>
+                                      <p><strong>New Domain:</strong> {mp4NewDomain || '(empty)'}</p>
+                                    </>
+                                  )}
+                                  {mp4MigrationMode === 'path' && (
+                                    <>
+                                      <p><strong>Old Path:</strong> {mp4OldPath || '(none)'}</p>
+                                      <p><strong>New Path:</strong> {mp4NewPath || '(empty)'}</p>
+                                    </>
+                                  )}
+                                  {mp4MigrationMode === 'full' && (
+                                    <>
+                                      <p><strong>Domain:</strong> {mp4OldDomain} ➔ {mp4NewDomain}</p>
+                                      <p><strong>Path:</strong> {mp4OldPath} ➔ {mp4NewPath}</p>
+                                    </>
+                                  )}
+                                  {mp4MigrationMode === 'custom' && (
+                                    <>
+                                      <p><strong>Find:</strong> {mp4OldCustom}</p>
+                                      <p><strong>Replace:</strong> {mp4NewCustom}</p>
+                                    </>
+                                  )}
+                                  {mp4PreviewResult && (
+                                    <p className="text-rose-600 font-bold pt-1 font-sans text-xs">
+                                      Affected Items: {mp4PreviewResult.matchCount} content item(s)
+                                    </p>
+                                  )}
+                                </div>
+                                <p className="text-rose-600 font-semibold text-xs">
+                                  🔒 100% Isolated: Filmyzilla, GDrive, Terabox, Mega and all other download links will NOT be touched.
+                                </p>
+                              </div>
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={handleExecuteMp4Migration}
+                              className="bg-rose-600 hover:bg-rose-700 text-white font-semibold"
+                            >
+                              Yes, Execute Mp4Moviez Migration
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
+                  </div>
+                </CardContent>
               </Card>
 
               {/* Link Migration & Pattern Replacement Tool */}
@@ -1511,20 +2206,27 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
                                 )}
                               </div>
                               <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto">
-                                {dbScanData.domains.map((d, i) => (
-                                  <Badge
-                                    key={i}
-                                    variant="outline"
-                                    onClick={() => {
-                                      setMigrationMode('domain');
-                                      setOldDomain(d.domain);
-                                      setPreviewResult(null);
-                                    }}
-                                    className="cursor-pointer hover:bg-orange-200 dark:hover:bg-orange-900/60 bg-background border-orange-300 text-orange-950 dark:text-orange-200 font-mono text-[11px] py-0.5 px-2 flex items-center gap-1"
-                                  >
-                                    🌐 {d.domain} <span className="text-[10px] bg-orange-200 dark:bg-orange-800 text-orange-900 dark:text-orange-100 rounded px-1">{d.count}</span>
-                                  </Badge>
-                                ))}
+                                {dbScanData.domains.map((d, i) => {
+                                  const isMp4 = d.domain.toLowerCase().includes('mp4moviez');
+                                  return (
+                                    <Badge
+                                      key={i}
+                                      variant="outline"
+                                      onClick={() => {
+                                        setMigrationMode('domain');
+                                        setOldDomain(d.domain);
+                                        setPreviewResult(null);
+                                      }}
+                                      className={`cursor-pointer hover:bg-orange-200 dark:hover:bg-orange-900/60 bg-background font-mono text-[11px] py-0.5 px-2 flex items-center gap-1 ${
+                                        isMp4 ? 'border-rose-400 text-rose-950 dark:text-rose-200 bg-rose-50/50' : 'border-orange-300 text-orange-950 dark:text-orange-200'
+                                      }`}
+                                    >
+                                      {isMp4 ? '🎬 ' : '🌐 '}{d.domain} <span className={`text-[10px] rounded px-1 ${
+                                        isMp4 ? 'bg-rose-200 text-rose-900' : 'bg-orange-200 dark:bg-orange-800 text-orange-900 dark:text-orange-100'
+                                      }`}>{d.count}</span>
+                                    </Badge>
+                                  );
+                                })}
                               </div>
                             </div>
                           )}
@@ -1534,34 +2236,55 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
                             <div className="space-y-1.5 pt-1">
                               <div className="font-semibold text-orange-900 dark:text-orange-300 flex items-center justify-between">
                                 <span>Detected Path Words / Segments (click to set in Path Migration):</span>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setMigrationMode('path');
-                                    setOldPath('download, downloads, verifieds');
-                                    setNewPath('verified');
-                                    setPreviewResult(null);
-                                  }}
-                                  className="text-[11px] text-orange-600 hover:underline font-normal"
-                                >
-                                  ✨ Set Quick Path Fix: downloads/verifieds ➔ verified
-                                </button>
-                              </div>
-                              <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto">
-                                {dbScanData.pathSegments.map((s, i) => (
-                                  <Badge
-                                    key={i}
-                                    variant="outline"
+                                <div className="flex items-center gap-3">
+                                  <button
+                                    type="button"
                                     onClick={() => {
                                       setMigrationMode('path');
-                                      setOldPath(s.segment);
+                                      setOldPath('dl.php');
+                                      setNewPath('dl.php');
                                       setPreviewResult(null);
                                     }}
-                                    className="cursor-pointer hover:bg-orange-200 dark:hover:bg-orange-900/60 bg-background border-orange-300 text-orange-950 dark:text-orange-200 font-mono text-[11px] py-0.5 px-2 flex items-center gap-1"
+                                    className="text-[11px] text-rose-600 hover:underline font-medium"
                                   >
-                                    📁 /{s.segment}/ <span className="text-[10px] bg-orange-200 dark:bg-orange-800 text-orange-900 dark:text-orange-100 rounded px-1">{s.count}</span>
-                                  </Badge>
-                                ))}
+                                    🎬 Set dl.php Path
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setMigrationMode('path');
+                                      setOldPath('download, downloads, verifieds');
+                                      setNewPath('verified');
+                                      setPreviewResult(null);
+                                    }}
+                                    className="text-[11px] text-orange-600 hover:underline font-normal"
+                                  >
+                                    ✨ downloads ➔ verified
+                                  </button>
+                                </div>
+                              </div>
+                              <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto">
+                                {dbScanData.pathSegments.map((s, i) => {
+                                  const isDlPhp = s.segment.toLowerCase() === 'dl.php';
+                                  return (
+                                    <Badge
+                                      key={i}
+                                      variant="outline"
+                                      onClick={() => {
+                                        setMigrationMode('path');
+                                        setOldPath(s.segment);
+                                        setPreviewResult(null);
+                                      }}
+                                      className={`cursor-pointer hover:bg-orange-200 dark:hover:bg-orange-900/60 bg-background font-mono text-[11px] py-0.5 px-2 flex items-center gap-1 ${
+                                        isDlPhp ? 'border-rose-400 text-rose-950 dark:text-rose-200 bg-rose-50/50 font-bold' : 'border-orange-300 text-orange-950 dark:text-orange-200'
+                                      }`}
+                                    >
+                                      {isDlPhp ? '🎬 /' : '📁 /'}{s.segment}/ <span className={`text-[10px] rounded px-1 ${
+                                        isDlPhp ? 'bg-rose-200 text-rose-900' : 'bg-orange-200 dark:bg-orange-800 text-orange-900 dark:text-orange-100'
+                                      }`}>{s.count}</span>
+                                    </Badge>
+                                  );
+                                })}
                               </div>
                             </div>
                           )}
@@ -1630,7 +2353,7 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
                               🌐 Domain Migration Mode
                             </h4>
                             <p className="text-xs text-orange-800 dark:text-orange-300">
-                              🔒 <strong>Isolated Execution:</strong> ONLY changes domain hostnames (e.g., <code className="font-mono bg-orange-200/80 dark:bg-orange-900/80 px-1 py-0.5 rounded text-[11px]">filmyzilla53.com</code> ➔ <code className="font-mono bg-orange-200/80 dark:bg-orange-900/80 px-1 py-0.5 rounded text-[11px]">filmyzilla54.com</code>). It will <strong>NEVER</strong> touch middle path words like <code className="font-mono">/verified/</code> or server numbers like <code className="font-mono">/server_1</code>.
+                              🔒 <strong>Isolated Execution:</strong> ONLY changes domain hostnames (e.g., <code className="font-mono bg-orange-200/80 dark:bg-orange-900/80 px-1 py-0.5 rounded text-[11px]">mp4moviez.rip</code> ➔ <code className="font-mono bg-orange-200/80 dark:bg-orange-900/80 px-1 py-0.5 rounded text-[11px]">mp4moviez.guru</code> or <code className="font-mono bg-orange-200/80 dark:bg-orange-900/80 px-1 py-0.5 rounded text-[11px]">filmyzilla53.com</code> ➔ <code className="font-mono bg-orange-200/80 dark:bg-orange-900/80 px-1 py-0.5 rounded text-[11px]">filmyzilla54.com</code>). It will <strong>NEVER</strong> touch middle path words like <code className="font-mono">/dl.php</code> or query parameters like <code className="font-mono">?id=...</code>.
                             </p>
                           </div>
 
@@ -1644,7 +2367,7 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
                                   setOldDomain(e.target.value);
                                   setPreviewResult(null);
                                 }}
-                                placeholder="e.g. filmyzilla53.com or filmyzilla29.com, filmyzilla30.com"
+                                placeholder="e.g. mp4moviez.rip or filmyzilla53.com, filmyzilla29.com"
                                 disabled={isMigrating || isPreviewing}
                                 className="border-orange-200 font-mono text-xs"
                               />
@@ -1659,7 +2382,7 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
                                   setNewDomain(e.target.value);
                                   setPreviewResult(null);
                                 }}
-                                placeholder="e.g. filmyzilla54.com"
+                                placeholder="e.g. mp4moviez.guru or filmyzilla54.com"
                                 disabled={isMigrating || isPreviewing}
                                 className="border-orange-200 font-mono text-xs"
                               />
@@ -1674,16 +2397,16 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
                         <div className="p-4 rounded-lg border border-orange-300 bg-orange-50/30 dark:bg-orange-950/10 space-y-3">
                           <div className="space-y-1">
                             <h4 className="text-sm font-bold text-orange-950 dark:text-orange-200 flex items-center gap-1.5">
-                              📁 Middle Path Segment Migration Mode
+                              📁 Middle Path Segment & Script Migration Mode
                             </h4>
                             <p className="text-xs text-orange-800 dark:text-orange-300">
-                              🔒 <strong>Isolated Execution:</strong> ONLY changes URL path words (e.g., <code className="font-mono bg-orange-200/80 dark:bg-orange-900/80 px-1 py-0.5 rounded text-[11px]">/download/</code> ➔ <code className="font-mono bg-orange-200/80 dark:bg-orange-900/80 px-1 py-0.5 rounded text-[11px]">/verified/</code>). It will <strong>NEVER</strong> touch domain names like <code className="font-mono">filmyzilla54.com</code> or server numbers.
+                              🔒 <strong>Isolated Execution:</strong> ONLY changes URL path words or endpoints (e.g., <code className="font-mono bg-orange-200/80 dark:bg-orange-900/80 px-1 py-0.5 rounded text-[11px]">dl.php</code> ➔ <code className="font-mono bg-orange-200/80 dark:bg-orange-900/80 px-1 py-0.5 rounded text-[11px]">download.php</code> or <code className="font-mono bg-orange-200/80 dark:bg-orange-900/80 px-1 py-0.5 rounded text-[11px]">/download/</code> ➔ <code className="font-mono bg-orange-200/80 dark:bg-orange-900/80 px-1 py-0.5 rounded text-[11px]">/verified/</code>). It will <strong>NEVER</strong> touch domain names like <code className="font-mono">mp4moviez.rip</code> or server numbers.
                             </p>
                           </div>
 
                           <div className="grid md:grid-cols-2 gap-4 pt-1">
                             <div className="space-y-1.5">
-                              <Label htmlFor="oldPathInput" className="text-orange-900 dark:text-orange-300 font-medium text-xs">Find Path Segment / Word(s)</Label>
+                              <Label htmlFor="oldPathInput" className="text-orange-900 dark:text-orange-300 font-medium text-xs">Find Path Segment / Script Name(s)</Label>
                               <Input
                                 id="oldPathInput"
                                 value={oldPath}
@@ -1691,14 +2414,14 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
                                   setOldPath(e.target.value);
                                   setPreviewResult(null);
                                 }}
-                                placeholder="e.g. download, downloads, verifieds"
+                                placeholder="e.g. dl.php or download, downloads, verifieds"
                                 disabled={isMigrating || isPreviewing}
                                 className="border-orange-200 font-mono text-xs"
                               />
-                              <p className="text-[11px] text-orange-700 dark:text-orange-400">Target word(s) between slashes in the link path.</p>
+                              <p className="text-[11px] text-orange-700 dark:text-orange-400">Target word(s) or script names (e.g. dl.php) in the link path.</p>
                             </div>
                             <div className="space-y-1.5">
-                              <Label htmlFor="newPathInput" className="text-orange-900 dark:text-orange-300 font-medium text-xs">Replace With Target Path Segment</Label>
+                              <Label htmlFor="newPathInput" className="text-orange-900 dark:text-orange-300 font-medium text-xs">Replace With Target Path Segment / Script</Label>
                               <Input
                                 id="newPathInput"
                                 value={newPath}
@@ -1706,11 +2429,11 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
                                   setNewPath(e.target.value);
                                   setPreviewResult(null);
                                 }}
-                                placeholder="e.g. verified"
+                                placeholder="e.g. download.php or verified"
                                 disabled={isMigrating || isPreviewing}
                                 className="border-orange-200 font-mono text-xs"
                               />
-                              <p className="text-[11px] text-orange-700 dark:text-orange-400">Target replacement word.</p>
+                              <p className="text-[11px] text-orange-700 dark:text-orange-400">Target replacement word or script name.</p>
                             </div>
                           </div>
 
