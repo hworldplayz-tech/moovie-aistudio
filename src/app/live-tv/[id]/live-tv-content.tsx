@@ -68,6 +68,9 @@ export default function LiveTvContent({ channel }: LiveTvContentProps) {
                 </div>
 
                 <div className="space-y-6 w-full min-w-0">
+                    {/* Related Channels Section - Shown above channel info */}
+                    <RelatedChannelsSection currentChannel={channel} />
+
                     {/* About Section with Poster */}
                     <Card className="bg-card border w-full">
                         <CardHeader className="p-4 sm:p-6 pb-2 sm:pb-3">
@@ -108,9 +111,6 @@ export default function LiveTvContent({ channel }: LiveTvContentProps) {
                             </p>
                         </CardContent>
                     </Card>
-
-                    {/* Related Channels Section */}
-                    <RelatedChannelsSection currentChannel={channel} />
                 </div>
             </div>
         </div>

@@ -472,7 +472,11 @@ export default async function WatchPage({ params }: WatchPageProps) {
       <RelatedMoviesSection currentContent={content} />
 
       <Separator />
-      <CommentSection contentId={String(content.id)} />
+      <CommentSection
+        contentId={String(content.id)}
+        contentTitle={content.title}
+        contentType={content.type}
+      />
 
       {/* Native Ad Below Content */}
       <div className="p-4 md:p-6 lg:p-8">

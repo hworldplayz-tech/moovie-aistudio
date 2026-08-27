@@ -2,12 +2,13 @@
  * @fileOverview Firestore helper functions for content management
  */
 import { db } from './firebase';
-import { collection, doc, setDoc, getDocs, deleteDoc, updateDoc, query, orderBy, limit, getDoc, where, increment } from 'firebase/firestore';
-import type { Content, LiveChannel } from './definitions';
+import { collection, doc, setDoc, addDoc, getDocs, deleteDoc, updateDoc, query, orderBy, limit, getDoc, where, increment } from 'firebase/firestore';
+import type { Content, LiveChannel, Comment } from './definitions';
 
 const CONTENT_COLLECTION = 'manually_added_content';
 const LIVE_TV_COLLECTION = 'live_tv_channels';
 const EXTERNAL_VIEWS_COLLECTION = 'external_item_views';
+const COMMENTS_COLLECTION = 'user_comments';
 
 function sanitizeForFirestore(obj: any): any {
     if (obj === null || obj === undefined) return null;
@@ -1170,6 +1171,189 @@ export async function getContentViewAnalytics(): Promise<{
         };
     }
 }
+
+/**
+ * =========================================================================
+ * COMMENTS SYSTEM (Firestore)
+ * =========================================================================
+ */
+
+/**
+ * Add a new comment to Firestore
+ */
+export async function addCommentToFirestore(params: {
+    contentId: string;
+    contentTitle?: string;
+    contentType?: 'movie' | 'tv' | string;
+    author: string;
+    text: string;
+    avatarUrl?: string;
+}): Promise<{ success: boolean; comment?: Comment; error?: string }> {
+    try {
+        const cleanAuthor = (params.author || '').trim() || 'Anonymous';
+        const cleanText = (params.text || '').trim();
+        const contentId = String(params.contentId || '').trim();
+
+        if (!cleanText) {
+            return { success: false, error: 'Comment text cannot be empty' };
+        }
+        if (!contentId) {
+            return { success: false, error: 'Missing content ID' };
+        }
+
+        const now = new Date().toISOString();
+        const commentData = sanitizeForFirestore({
+            contentId,
+            contentTitle: (params.contentTitle || 'Untitled Movie/Show').trim(),
+            contentType: params.contentType || 'movie',
+            author: cleanAuthor,
+            text: cleanText,
+            avatarUrl: params.avatarUrl || '',
+            timestamp: Date.now(),
+            createdAt: now,
+            updatedAt: now,
+        });
+
+        const docRef = await addDoc(collection(db, COMMENTS_COLLECTION), commentData);
+        const newComment: Comment = {
+            id: docRef.id,
+            ...commentData,
+        };
+
+        return { success: true, comment: newComment };
+    } catch (error) {
+        console.error('Failed to add comment to Firestore:', error);
+        return { success: false, error: error instanceof Error ? error.message : 'Failed to post comment' };
+    }
+}
+
+/**
+ * Get all comments for a specific content (movie / tv series)
+ */
+export async function getCommentsByContentId(contentId: string): Promise<Comment[]> {
+    try {
+        if (!contentId) return [];
+        const strId = String(contentId).trim();
+        
+        // Fetch comments where contentId matches
+        const q = query(
+            collection(db, COMMENTS_COLLECTION),
+            where('contentId', '==', strId)
+        );
+        const snapshot = await getDocs(q);
+        const comments: Comment[] = [];
+
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            comments.push({
+                id: doc.id,
+                contentId: data.contentId || strId,
+                contentTitle: data.contentTitle || '',
+                contentType: data.contentType || 'movie',
+                author: data.author || 'Anonymous',
+                text: data.text || '',
+                avatarUrl: data.avatarUrl || '',
+                timestamp: data.timestamp || (data.createdAt ? new Date(data.createdAt).getTime() : Date.now()),
+                createdAt: data.createdAt || new Date().toISOString(),
+                updatedAt: data.updatedAt || undefined,
+                replies: Array.isArray(data.replies) ? data.replies : [],
+            });
+        });
+
+        // Sort newest first
+        return comments.sort((a, b) => {
+            const timeA = typeof a.timestamp === 'number' ? a.timestamp : new Date(a.createdAt).getTime();
+            const timeB = typeof b.timestamp === 'number' ? b.timestamp : new Date(b.createdAt).getTime();
+            return timeB - timeA;
+        });
+    } catch (error) {
+        console.error(`Failed to fetch comments for content ${contentId}:`, error);
+        return [];
+    }
+}
+
+/**
+ * Get ALL comments across all movies/shows for Admin Panel management
+ */
+export async function getAllCommentsFromFirestore(): Promise<Comment[]> {
+    try {
+        const snapshot = await getDocs(collection(db, COMMENTS_COLLECTION));
+        const comments: Comment[] = [];
+
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            comments.push({
+                id: doc.id,
+                contentId: data.contentId || '',
+                contentTitle: data.contentTitle || 'Untitled Movie/Show',
+                contentType: data.contentType || 'movie',
+                author: data.author || 'Anonymous',
+                text: data.text || '',
+                avatarUrl: data.avatarUrl || '',
+                timestamp: data.timestamp || (data.createdAt ? new Date(data.createdAt).getTime() : Date.now()),
+                createdAt: data.createdAt || new Date().toISOString(),
+                updatedAt: data.updatedAt || undefined,
+                replies: Array.isArray(data.replies) ? data.replies : [],
+            });
+        });
+
+        // Sort newest first
+        return comments.sort((a, b) => {
+            const timeA = typeof a.timestamp === 'number' ? a.timestamp : new Date(a.createdAt).getTime();
+            const timeB = typeof b.timestamp === 'number' ? b.timestamp : new Date(b.createdAt).getTime();
+            return timeB - timeA;
+        });
+    } catch (error) {
+        console.error('Failed to fetch all comments from Firestore:', error);
+        return [];
+    }
+}
+
+/**
+ * Update an existing comment (e.g. edit text or author)
+ */
+export async function updateCommentInFirestore(
+    commentId: string,
+    updates: { text?: string; author?: string; contentTitle?: string }
+): Promise<{ success: boolean; error?: string }> {
+    try {
+        if (!commentId) {
+            return { success: false, error: 'Invalid comment ID' };
+        }
+        const commentRef = doc(db, COMMENTS_COLLECTION, commentId);
+        const dataToUpdate: Record<string, any> = {
+            updatedAt: new Date().toISOString(),
+        };
+
+        if (updates.text !== undefined) dataToUpdate.text = updates.text.trim();
+        if (updates.author !== undefined) dataToUpdate.author = updates.author.trim();
+        if (updates.contentTitle !== undefined) dataToUpdate.contentTitle = updates.contentTitle.trim();
+
+        await updateDoc(commentRef, sanitizeForFirestore(dataToUpdate));
+        return { success: true };
+    } catch (error) {
+        console.error(`Failed to update comment ${commentId}:`, error);
+        return { success: false, error: error instanceof Error ? error.message : 'Failed to update comment' };
+    }
+}
+
+/**
+ * Delete a comment from Firestore
+ */
+export async function deleteCommentFromFirestore(commentId: string): Promise<{ success: boolean; error?: string }> {
+    try {
+        if (!commentId) {
+            return { success: false, error: 'Invalid comment ID' };
+        }
+        const commentRef = doc(db, COMMENTS_COLLECTION, commentId);
+        await deleteDoc(commentRef);
+        return { success: true };
+    } catch (error) {
+        console.error(`Failed to delete comment ${commentId}:`, error);
+        return { success: false, error: error instanceof Error ? error.message : 'Failed to delete comment' };
+    }
+}
+
 
 
 

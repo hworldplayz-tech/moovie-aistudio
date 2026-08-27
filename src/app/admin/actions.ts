@@ -1392,6 +1392,40 @@ export async function updateHeaderScriptsAction(scripts: string): Promise<{ succ
   }
 }
 
+/**
+ * Comments Admin Actions
+ */
+export async function getAllCommentsAction() {
+  try {
+    const { getAllCommentsFromFirestore } = await import('@/lib/firestore');
+    return await getAllCommentsFromFirestore();
+  } catch (error) {
+    console.error('getAllCommentsAction error:', error);
+    return [];
+  }
+}
+
+export async function updateCommentAction(commentId: string, text: string, author?: string) {
+  try {
+    const { updateCommentInFirestore } = await import('@/lib/firestore');
+    return await updateCommentInFirestore(commentId, { text, author });
+  } catch (error: any) {
+    console.error('updateCommentAction error:', error);
+    return { success: false, error: error?.message || 'Failed to update comment' };
+  }
+}
+
+export async function deleteCommentAction(commentId: string) {
+  try {
+    const { deleteCommentFromFirestore } = await import('@/lib/firestore');
+    return await deleteCommentFromFirestore(commentId);
+  } catch (error: any) {
+    console.error('deleteCommentAction error:', error);
+    return { success: false, error: error?.message || 'Failed to delete comment' };
+  }
+}
+
+
 
 
 

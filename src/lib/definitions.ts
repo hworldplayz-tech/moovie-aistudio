@@ -106,12 +106,17 @@ export interface AuthContextType {
 export type Comment = {
   id: string;
   author: string;
-  authorId: string;
-  avatarUrl: string;
+  authorId?: string;
+  avatarUrl?: string;
   text: string;
-  timestamp: number;
-  replies: Comment[];
-}
+  timestamp?: number;
+  contentId: string;
+  contentTitle?: string;
+  contentType?: 'movie' | 'tv' | string;
+  createdAt: string;
+  updatedAt?: string;
+  replies?: Comment[];
+};
 
 export type CastMember = {
   id: number;
