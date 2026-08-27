@@ -527,8 +527,20 @@ export async function deleteLiveChannel(id: string): Promise<{ success: boolean 
  * Get content by slug (for SEO-friendly URLs) with cache-first acceleration
  */
 export async function getContentBySlug(slug: string): Promise<Content | null> {
+    const cleanSlug = slug.toLowerCase().trim();
+    
+    // 1. Fast in-memory check
     if (cachedAllContent && (Date.now() - cachedAllContentTime < CONTENT_CACHE_TTL)) {
-        const found = cachedAllContent.find(c => c.slug === slug);
+        const found = cachedAllContent.find(c => {
+            if (!c) return false;
+            if (c.slug && c.slug.toLowerCase() === cleanSlug) return true;
+            if (String(c.id).toLowerCase() === cleanSlug) return true;
+            if (c.title) {
+                const itemSlug = c.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+                if (cleanSlug.includes(itemSlug) || itemSlug.includes(cleanSlug)) return true;
+            }
+            return false;
+        });
         if (found) return found;
     }
 
@@ -537,45 +549,44 @@ export async function getContentBySlug(slug: string): Promise<Content | null> {
         const q = query(contentCollectionRef, where('slug', '==', slug));
         const querySnapshot = await getDocs(q);
 
-        if (querySnapshot.empty) {
-            return null;
+        if (!querySnapshot.empty) {
+            const docData = querySnapshot.docs[0].data();
+            return {
+                id: docData.id,
+                title: docData.title,
+                description: docData.description,
+                posterPath: docData.posterPath,
+                backdropPath: docData.backdropPath,
+                genres: docData.genres || [],
+                releaseDate: docData.releaseDate,
+                rating: docData.rating,
+                type: docData.type,
+                trailerUrl: docData.trailerUrl,
+                youtubeTrailerUrl: docData.youtubeTrailerUrl,
+                downloadLink: docData.downloadLink,
+                downloadLinks: docData.downloadLinks,
+                isHindiDubbed: docData.isHindiDubbed,
+                customTags: docData.customTags,
+                cast: docData.cast,
+                runtime: docData.runtime,
+                numberOfSeasons: docData.numberOfSeasons,
+                seasons: docData.seasons,
+                languages: docData.languages,
+                quality: docData.quality,
+                createdAt: docData.createdAt,
+                updatedAt: docData.updatedAt,
+                lastAirDate: docData.lastAirDate,
+                uploadedBy: docData.uploadedBy,
+                country: docData.country,
+                isFeatured: docData.isFeatured,
+                slug: docData.slug,
+                viewsCount: docData.viewsCount || 0,
+            } as Content;
         }
-
-        const docData = querySnapshot.docs[0].data();
-        return {
-            id: docData.id,
-            title: docData.title,
-            description: docData.description,
-            posterPath: docData.posterPath,
-            backdropPath: docData.backdropPath,
-            genres: docData.genres || [],
-            releaseDate: docData.releaseDate,
-            rating: docData.rating,
-            type: docData.type,
-            trailerUrl: docData.trailerUrl,
-            youtubeTrailerUrl: docData.youtubeTrailerUrl,
-            downloadLink: docData.downloadLink,
-            downloadLinks: docData.downloadLinks,
-            isHindiDubbed: docData.isHindiDubbed,
-            customTags: docData.customTags,
-            cast: docData.cast,
-            runtime: docData.runtime,
-            numberOfSeasons: docData.numberOfSeasons,
-            languages: docData.languages,
-            quality: docData.quality,
-            createdAt: docData.createdAt,
-            updatedAt: docData.updatedAt,
-            lastAirDate: docData.lastAirDate,
-            uploadedBy: docData.uploadedBy,
-            country: docData.country,
-            isFeatured: docData.isFeatured,
-            slug: docData.slug,
-            viewsCount: docData.viewsCount || 0,
-        } as Content;
     } catch (error) {
         console.error('Error getting content by slug:', error);
-        return null;
     }
+    return null;
 }
 
 // --- CUSTOM PLAYER SYSTEM ---

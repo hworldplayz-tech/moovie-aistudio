@@ -49,13 +49,12 @@ function ContentCardComponent({
   const getOptimizedPoster = (url?: string, size: string = 'w342') => {
     if (!url || typeof url !== 'string') return '/placeholder.png';
     if (url.includes('image.tmdb.org')) {
-      // Replace typical sizes (original, w500) with the specified size
       return url.replace(/\/w\d+\//, `/${size}/`).replace('/original/', `/${size}/`);
     }
     return url;
   };
 
-  const optimizedPoster = getOptimizedPoster(content.posterPath);
+  const optimizedPoster = getOptimizedPoster(content.posterPath, variant === 'list' ? 'w185' : 'w342');
 
   const titleText = content?.title || 'Untitled';
   const watchUrl = content?.slug
@@ -95,16 +94,16 @@ function ContentCardComponent({
 
   if (variant === 'list') {
     return (
-      <div className={cn("group relative flex gap-3 sm:gap-4 p-2.5 sm:p-3 border border-border/60 rounded-xl bg-card hover:bg-muted/50 transition-all duration-200 shadow-sm", className)}>
-        <Link href={watchUrl} className="relative w-20 sm:w-28 md:w-32 aspect-[2/3] flex-shrink-0 rounded-lg overflow-hidden bg-muted group/thumb">
+      <div className={cn("group relative flex gap-3 sm:gap-4 p-2.5 sm:p-3 border border-border/60 rounded-xl bg-card hover:bg-muted/50 transition-all duration-200 shadow-sm transform-gpu", className)}>
+        <Link href={watchUrl} prefetch={true} className="relative w-20 sm:w-28 md:w-32 aspect-[2/3] flex-shrink-0 rounded-lg overflow-hidden bg-muted group/thumb">
           <Image
             src={optimizedPoster}
             alt={content?.title || 'Title'}
             fill
             className="object-cover transition-transform duration-300 group-hover/thumb:scale-105"
             sizes="(max-width: 640px) 80px, 128px"
-            unoptimized
             priority={priority}
+            loading={priority ? 'eager' : 'lazy'}
           />
           <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/thumb:opacity-100 transition-opacity flex items-center justify-center">
             <PlayCircle className="w-7 h-7 sm:w-8 sm:h-8 text-primary" />
@@ -119,7 +118,7 @@ function ContentCardComponent({
         <div className="flex-1 flex flex-col justify-between min-w-0 py-0.5">
           <div>
             <div className="flex items-start justify-between gap-2">
-              <Link href={watchUrl} className="hover:underline min-w-0">
+              <Link href={watchUrl} prefetch={true} className="hover:underline min-w-0">
                 <h3 className="font-bold text-sm sm:text-base md:text-lg truncate text-foreground">{content?.title || 'Untitled'}</h3>
               </Link>
               <div className="flex items-center gap-1 shrink-0 text-xs sm:text-sm bg-yellow-400/10 text-yellow-500 px-1.5 py-0.5 rounded font-medium">
@@ -151,7 +150,7 @@ function ContentCardComponent({
             </div>
 
             <Button asChild size="sm" className="h-7 sm:h-8 text-xs px-2.5 sm:px-3">
-              <Link href={watchUrl}>
+              <Link href={watchUrl} prefetch={true}>
                 <PlayCircle className="mr-1.5 h-3.5 w-3.5" />
                 Watch Now
               </Link>
@@ -165,19 +164,19 @@ function ContentCardComponent({
   }
 
   return (
-    <div className="group relative">
-      <Link href={watchUrl} className="block">
+    <div className={cn("group relative transform-gpu", className)}>
+      <Link href={watchUrl} prefetch={true} className="block">
         <Card className="overflow-hidden border-0 bg-transparent">
           <CardContent className="p-0">
-            <div className="relative aspect-[2/3] w-full">
+            <div className="relative aspect-[2/3] w-full bg-muted/40 rounded-lg overflow-hidden">
               <Image
                 src={optimizedPoster}
                 alt={content?.title || 'Title'}
                 fill
                 className="object-cover rounded-lg transition-transform duration-300 group-hover:scale-105"
                 sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, (max-width: 1024px) 25vw, 16vw"
-                unoptimized
                 priority={priority}
+                loading={priority ? 'eager' : 'lazy'}
               />
               <div className="absolute top-1 left-1 z-10 flex flex-wrap gap-0.5 items-start max-w-[92%]">
                 {content.isTmdbOnly && (

@@ -40,8 +40,6 @@ type WatchPageProps = {
 };
 
 const resolveContentFromSlug = cache(async (slug: string) => {
-  let manualItem = await getContentBySlug(slug);
-
   let typeOverride: 'movie' | 'tv' | undefined = undefined;
   let cleanSlug = slug;
 
@@ -57,9 +55,11 @@ const resolveContentFromSlug = cache(async (slug: string) => {
   const contentId = idMatch ? idMatch[1] : cleanSlug;
   const expectedKeywords = cleanSlug.replace(/^\d+[-_]?/, '');
 
+  // 1. Instant check in memory cached manually added content (< 1ms)
   const manuallyAdded = await getManuallyAddedContent();
 
   const isMatch = (m: Content, targetId?: string, targetTitle?: string) => {
+    if (!m) return false;
     const mId = String(m.id);
     const cleanMId = mId.replace(/^(movie|tv)-/, '');
     const cleanContentId = contentId.replace(/^(movie|tv)-/, '');
@@ -82,14 +82,33 @@ const resolveContentFromSlug = cache(async (slug: string) => {
     return false;
   };
 
+  let manualItem = manuallyAdded.find(c => isMatch(c)) || null;
   if (!manualItem) {
-    manualItem = manuallyAdded.find(c => isMatch(c)) || null;
+    manualItem = await getContentBySlug(slug);
   }
 
-  const apiContent = await getContentById(contentId, typeOverride, expectedKeywords);
+  let apiContent: Content | null = null;
 
-  if (!manualItem && apiContent) {
-    manualItem = manuallyAdded.find(c => isMatch(c, String(apiContent.id), apiContent.title)) || null;
+  // 2. If manual item is already found with core data, only query TMDB with a non-blocking fast race
+  if (manualItem && manualItem.title && manualItem.posterPath) {
+    if (!manualItem.cast?.length || !manualItem.youtubeTrailerUrl) {
+      try {
+        // Fast non-blocking fetch with 1000ms max timeout
+        const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 1000));
+        apiContent = await Promise.race([
+          getContentById(contentId, typeOverride || (manualItem.type as any), expectedKeywords),
+          timeoutPromise
+        ]);
+      } catch {
+        // Suppress timeout errors
+      }
+    }
+  } else {
+    // For TMDB-only items, fetch TMDB details
+    apiContent = await getContentById(contentId, typeOverride, expectedKeywords);
+    if (!manualItem && apiContent) {
+      manualItem = manuallyAdded.find(c => isMatch(c, String(apiContent.id), apiContent.title)) || null;
+    }
   }
 
   let finalContent: Content | null = null;
@@ -110,6 +129,7 @@ const resolveContentFromSlug = cache(async (slug: string) => {
         : (apiContent?.seasons || []),
       downloadLink: manualItem.downloadLink || apiContent?.downloadLink,
       trailerUrl: manualItem.trailerUrl || apiContent?.trailerUrl,
+      cast: (manualItem.cast && manualItem.cast.length > 0) ? manualItem.cast : (apiContent?.cast || []),
       inLibrary: true,
       isTmdbOnly: false,
     };
