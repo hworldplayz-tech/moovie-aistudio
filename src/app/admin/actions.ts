@@ -324,13 +324,22 @@ export async function getUserByUsername(username: string): Promise<SystemUser | 
  */
 export type MigrationMode = 'domain' | 'path' | 'server' | 'custom';
 
-function isMp4moviezUrl(url?: string): boolean {
+function isMp4moviezUrl(url?: string, extraDomain?: string): boolean {
   if (!url) return false;
   const lower = url.toLowerCase();
-  return (
+  if (
     lower.includes('mp4moviez') ||
     (lower.includes('dl.php') && (lower.includes('id=') || lower.includes('jio=') || lower.includes('q=')))
-  );
+  ) {
+    return true;
+  }
+  if (extraDomain) {
+    const cleanExtra = cleanDomainHost(extraDomain);
+    if (cleanExtra && lower.includes(cleanExtra)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function isFilmyzillaUrl(url?: string): boolean {
@@ -364,9 +373,15 @@ function replaceDomainOnly(url: string, findDomainsRaw: string, replaceDomainRaw
     const hostLower = urlObj.hostname.toLowerCase();
     
     for (const target of findDomains) {
-      if (hostLower === target || hostLower === `www.${target}` || hostLower.endsWith(`.${target}`)) {
+      if (hostLower === target || hostLower === `www.${target}`) {
         if (!targetHost) return url;
         urlObj.hostname = targetHost;
+        const res = urlObj.toString();
+        return isPrefixed && !url.trim().startsWith('http') ? res.replace(/^https?:\/\//i, '') : res;
+      } else if (hostLower.endsWith(`.${target}`)) {
+        if (!targetHost) return url;
+        const subdomain = hostLower.slice(0, -(target.length));
+        urlObj.hostname = `${subdomain}${targetHost}`;
         const res = urlObj.toString();
         return isPrefixed && !url.trim().startsWith('http') ? res.replace(/^https?:\/\//i, '') : res;
       }
@@ -542,7 +557,7 @@ function applyMigrationReplacements(
 
 /**
  * Scans all content items in Firestore to extract all unique domains & path segments.
- * Used by the Admin Link Migration Scanner UI.
+ * Deeply traverses single links, multi-quality links, and TV Series seasons/episodes/zip packs.
  */
 export async function scanDatabaseDownloadLinks(): Promise<{
   success: boolean;
@@ -568,6 +583,33 @@ export async function scanDatabaseDownloadLinks(): Promise<{
         for (const link of item.downloadLinks) {
           if (link.url && link.url.trim()) {
             urls.push(link.url.trim());
+          }
+        }
+      }
+
+      // Deep scan TV Series seasons, episodes, and zip packs
+      if (item.seasons && Array.isArray(item.seasons)) {
+        for (const season of item.seasons) {
+          if (season.zipPackLinks && Array.isArray(season.zipPackLinks)) {
+            for (const zip of season.zipPackLinks) {
+              if (zip.url && zip.url.trim()) {
+                urls.push(zip.url.trim());
+              }
+            }
+          }
+          if (season.episodes && Array.isArray(season.episodes)) {
+            for (const ep of season.episodes) {
+              if (ep.downloadLink && ep.downloadLink.trim()) {
+                urls.push(ep.downloadLink.trim());
+              }
+              if (ep.downloadLinks && Array.isArray(ep.downloadLinks)) {
+                for (const link of ep.downloadLinks) {
+                  if (link.url && link.url.trim()) {
+                    urls.push(link.url.trim());
+                  }
+                }
+              }
+            }
           }
         }
       }
@@ -666,14 +708,16 @@ export async function previewLinkMigration(
       let matchedInItem = false;
       let sampleOld = '';
       let sampleNew = '';
+      let matchLocation = '';
 
-      const testUrl = (rawUrl: string) => {
+      const testUrl = (rawUrl: string, locationLabel?: string) => {
         if (!rawUrl) return;
-        const matches = checkLinkMatchesCriteria(rawUrl, findText, mode, flexMatch);
-        if (matches) {
+        const isMatch = checkLinkMatchesCriteria(rawUrl, findText, mode, flexMatch);
+        if (isMatch) {
           matchedInItem = true;
           if (!sampleOld) {
             sampleOld = rawUrl;
+            matchLocation = locationLabel || '';
             if (replaceText && replaceText.trim() !== '') {
               const newUrl = applyMigrationReplacements(rawUrl, findText, replaceText, mode, flexMatch);
               sampleNew = newUrl;
@@ -685,13 +729,42 @@ export async function previewLinkMigration(
       };
 
       if (item.downloadLink) {
-        testUrl(item.downloadLink);
+        testUrl(item.downloadLink, 'Main Single Link');
       }
 
       if (item.downloadLinks && Array.isArray(item.downloadLinks)) {
         for (const link of item.downloadLinks) {
           if (link.url) {
-            testUrl(link.url);
+            testUrl(link.url, link.label || 'Movie Link');
+          }
+        }
+      }
+
+      // Check TV Series seasons, episodes, and zip pack links
+      if (item.seasons && Array.isArray(item.seasons)) {
+        for (const season of item.seasons) {
+          const sNum = season.seasonNumber || 1;
+          if (season.zipPackLinks && Array.isArray(season.zipPackLinks)) {
+            for (const zip of season.zipPackLinks) {
+              if (zip.url) {
+                testUrl(zip.url, `S${sNum} ZIP - ${zip.label || 'Batch'}`);
+              }
+            }
+          }
+          if (season.episodes && Array.isArray(season.episodes)) {
+            for (const ep of season.episodes) {
+              const epNum = ep.episodeNumber || 1;
+              if (ep.downloadLink) {
+                testUrl(ep.downloadLink, `S${sNum}E${epNum}`);
+              }
+              if (ep.downloadLinks && Array.isArray(ep.downloadLinks)) {
+                for (const link of ep.downloadLinks) {
+                  if (link.url) {
+                    testUrl(link.url, `S${sNum}E${epNum} (${link.label || 'Ep Link'})`);
+                  }
+                }
+              }
+            }
           }
         }
       }
@@ -699,7 +772,7 @@ export async function previewLinkMigration(
       if (matchedInItem) {
         matches.push({
           id: item.id,
-          title: item.title,
+          title: matchLocation ? `${item.title} [${matchLocation}]` : item.title,
           oldUrl: sampleOld,
           newUrlPreview: sampleNew
         });
@@ -709,7 +782,7 @@ export async function previewLinkMigration(
     return {
       success: true,
       matchCount: matches.length,
-      sampleMatches: matches.slice(0, 15)
+      sampleMatches: matches.slice(0, 25)
     };
   } catch (error) {
     console.error('Link migration preview failed:', error);
@@ -740,7 +813,7 @@ export async function migrateDownloadLinks(
       let hasChanges = false;
       const updatedItem = { ...item };
 
-      // Check legacy downloadLink
+      // 1. Single fallback downloadLink
       if (updatedItem.downloadLink) {
         const newUrl = applyMigrationReplacements(updatedItem.downloadLink, findText, replaceText, mode, flexMatch);
         if (newUrl !== updatedItem.downloadLink) {
@@ -749,7 +822,7 @@ export async function migrateDownloadLinks(
         }
       }
 
-      // Check downloadLinks array
+      // 2. Movie downloadLinks array
       if (updatedItem.downloadLinks && Array.isArray(updatedItem.downloadLinks)) {
         updatedItem.downloadLinks = updatedItem.downloadLinks.map(link => {
           if (link.url) {
@@ -763,6 +836,64 @@ export async function migrateDownloadLinks(
             }
           }
           return link;
+        });
+      }
+
+      // 3. TV Series seasons, episodes, and zip pack links
+      if (updatedItem.seasons && Array.isArray(updatedItem.seasons)) {
+        updatedItem.seasons = updatedItem.seasons.map(season => {
+          let seasonChanged = false;
+          const updatedSeason = { ...season };
+
+          // Season ZIP pack links
+          if (updatedSeason.zipPackLinks && Array.isArray(updatedSeason.zipPackLinks)) {
+            updatedSeason.zipPackLinks = updatedSeason.zipPackLinks.map(zip => {
+              if (zip.url) {
+                const newUrl = applyMigrationReplacements(zip.url, findText, replaceText, mode, flexMatch);
+                if (newUrl !== zip.url) {
+                  hasChanges = true;
+                  seasonChanged = true;
+                  return { ...zip, url: newUrl };
+                }
+              }
+              return zip;
+            });
+          }
+
+          // Season Episodes
+          if (updatedSeason.episodes && Array.isArray(updatedSeason.episodes)) {
+            updatedSeason.episodes = updatedSeason.episodes.map(ep => {
+              let epChanged = false;
+              const updatedEp = { ...ep };
+
+              if (updatedEp.downloadLink) {
+                const newUrl = applyMigrationReplacements(updatedEp.downloadLink, findText, replaceText, mode, flexMatch);
+                if (newUrl !== updatedEp.downloadLink) {
+                  updatedEp.downloadLink = newUrl;
+                  hasChanges = true;
+                  epChanged = true;
+                }
+              }
+
+              if (updatedEp.downloadLinks && Array.isArray(updatedEp.downloadLinks)) {
+                updatedEp.downloadLinks = updatedEp.downloadLinks.map(link => {
+                  if (link.url) {
+                    const newUrl = applyMigrationReplacements(link.url, findText, replaceText, mode, flexMatch);
+                    if (newUrl !== link.url) {
+                      hasChanges = true;
+                      epChanged = true;
+                      return { ...link, url: newUrl };
+                    }
+                  }
+                  return link;
+                });
+              }
+
+              return epChanged ? updatedEp : ep;
+            });
+          }
+
+          return seasonChanged ? updatedSeason : season;
         });
       }
 
@@ -798,7 +929,7 @@ export interface Mp4moviezMigrationParams {
 }
 
 function applyMp4moviezReplacements(url: string, params: Mp4moviezMigrationParams): string {
-  if (!url || !isMp4moviezUrl(url)) return url;
+  if (!url || !isMp4moviezUrl(url, params.oldDomain)) return url;
 
   let currentUrl = url;
 
@@ -825,7 +956,7 @@ function applyMp4moviezReplacements(url: string, params: Mp4moviezMigrationParam
 }
 
 function isMp4moviezMatch(url: string, params: Mp4moviezMigrationParams): boolean {
-  if (!url || !isMp4moviezUrl(url)) return false;
+  if (!url || !isMp4moviezUrl(url, params.oldDomain)) return false;
 
   if (params.mode === 'domain' && params.oldDomain) {
     return urlMatchesDomain(url, params.oldDomain);
@@ -845,6 +976,7 @@ function isMp4moviezMatch(url: string, params: Mp4moviezMigrationParams): boolea
 
 /**
  * Dedicated Scanner for Mp4Moviez Download Links
+ * Traverses single links, multi-quality links, and TV Series seasons/episodes/zip packs.
  */
 export async function scanMp4moviezLinksAction(): Promise<{
   success: boolean;
@@ -870,6 +1002,33 @@ export async function scanMp4moviezLinksAction(): Promise<{
         for (const link of item.downloadLinks) {
           if (link.url && isMp4moviezUrl(link.url)) {
             mp4Urls.push(link.url.trim());
+          }
+        }
+      }
+
+      // Deep scan TV Series seasons, episodes, and zip pack links for Mp4Moviez URLs
+      if (item.seasons && Array.isArray(item.seasons)) {
+        for (const season of item.seasons) {
+          if (season.zipPackLinks && Array.isArray(season.zipPackLinks)) {
+            for (const zip of season.zipPackLinks) {
+              if (zip.url && isMp4moviezUrl(zip.url)) {
+                mp4Urls.push(zip.url.trim());
+              }
+            }
+          }
+          if (season.episodes && Array.isArray(season.episodes)) {
+            for (const ep of season.episodes) {
+              if (ep.downloadLink && isMp4moviezUrl(ep.downloadLink)) {
+                mp4Urls.push(ep.downloadLink.trim());
+              }
+              if (ep.downloadLinks && Array.isArray(ep.downloadLinks)) {
+                for (const link of ep.downloadLinks) {
+                  if (link.url && isMp4moviezUrl(link.url)) {
+                    mp4Urls.push(link.url.trim());
+                  }
+                }
+              }
+            }
           }
         }
       }
@@ -928,6 +1087,7 @@ export async function scanMp4moviezLinksAction(): Promise<{
 
 /**
  * Dedicated Preview for Mp4Moviez Link Migration
+ * Previews changes on single links, multi-quality links, and TV Series seasons/episodes/zip packs.
  */
 export async function previewMp4moviezMigrationAction(params: Mp4moviezMigrationParams): Promise<{
   success: boolean;
@@ -943,13 +1103,15 @@ export async function previewMp4moviezMigrationAction(params: Mp4moviezMigration
       let matchedInItem = false;
       let sampleOld = '';
       let sampleNew = '';
+      let matchLocation = '';
 
-      const checkLink = (rawUrl: string) => {
-        if (!rawUrl || !isMp4moviezUrl(rawUrl)) return;
+      const checkLink = (rawUrl: string, locationLabel?: string) => {
+        if (!rawUrl || !isMp4moviezUrl(rawUrl, params.oldDomain)) return;
         if (isMp4moviezMatch(rawUrl, params)) {
           matchedInItem = true;
           if (!sampleOld) {
             sampleOld = rawUrl;
+            matchLocation = locationLabel || '';
             const replaced = applyMp4moviezReplacements(rawUrl, params);
             sampleNew = (replaced !== rawUrl) ? replaced : `(Matched: ${sampleOld})`;
           }
@@ -957,13 +1119,42 @@ export async function previewMp4moviezMigrationAction(params: Mp4moviezMigration
       };
 
       if (item.downloadLink) {
-        checkLink(item.downloadLink);
+        checkLink(item.downloadLink, 'Main Single Link');
       }
 
       if (item.downloadLinks && Array.isArray(item.downloadLinks)) {
         for (const link of item.downloadLinks) {
           if (link.url) {
-            checkLink(link.url);
+            checkLink(link.url, link.label || 'Movie Link');
+          }
+        }
+      }
+
+      // Check TV Series seasons, episodes, and zip pack links
+      if (item.seasons && Array.isArray(item.seasons)) {
+        for (const season of item.seasons) {
+          const sNum = season.seasonNumber || 1;
+          if (season.zipPackLinks && Array.isArray(season.zipPackLinks)) {
+            for (const zip of season.zipPackLinks) {
+              if (zip.url) {
+                checkLink(zip.url, `S${sNum} ZIP - ${zip.label || 'Batch'}`);
+              }
+            }
+          }
+          if (season.episodes && Array.isArray(season.episodes)) {
+            for (const ep of season.episodes) {
+              const epNum = ep.episodeNumber || 1;
+              if (ep.downloadLink) {
+                checkLink(ep.downloadLink, `S${sNum}E${epNum}`);
+              }
+              if (ep.downloadLinks && Array.isArray(ep.downloadLinks)) {
+                for (const link of ep.downloadLinks) {
+                  if (link.url) {
+                    checkLink(link.url, `S${sNum}E${epNum} (${link.label || 'Ep Link'})`);
+                  }
+                }
+              }
+            }
           }
         }
       }
@@ -971,7 +1162,7 @@ export async function previewMp4moviezMigrationAction(params: Mp4moviezMigration
       if (matchedInItem) {
         matches.push({
           id: item.id,
-          title: item.title,
+          title: matchLocation ? `${item.title} [${matchLocation}]` : item.title,
           oldUrl: sampleOld,
           newUrlPreview: sampleNew
         });
@@ -981,7 +1172,7 @@ export async function previewMp4moviezMigrationAction(params: Mp4moviezMigration
     return {
       success: true,
       matchCount: matches.length,
-      sampleMatches: matches.slice(0, 20)
+      sampleMatches: matches.slice(0, 25)
     };
   } catch (error) {
     console.error('Mp4Moviez migration preview failed:', error);
@@ -996,6 +1187,7 @@ export async function previewMp4moviezMigrationAction(params: Mp4moviezMigration
 
 /**
  * Dedicated Batch Migrator for Mp4Moviez Download Links
+ * Safely updates single links, multi-qualities, and TV Series seasons/episodes/zip packs.
  */
 export async function migrateMp4moviezLinksAction(params: Mp4moviezMigrationParams): Promise<{
   success: boolean;
@@ -1010,7 +1202,8 @@ export async function migrateMp4moviezLinksAction(params: Mp4moviezMigrationPara
       let hasChanges = false;
       const updatedItem = { ...item };
 
-      if (updatedItem.downloadLink && isMp4moviezUrl(updatedItem.downloadLink)) {
+      // 1. Single fallback downloadLink
+      if (updatedItem.downloadLink && isMp4moviezUrl(updatedItem.downloadLink, params.oldDomain)) {
         const newUrl = applyMp4moviezReplacements(updatedItem.downloadLink, params);
         if (newUrl !== updatedItem.downloadLink) {
           updatedItem.downloadLink = newUrl;
@@ -1018,9 +1211,10 @@ export async function migrateMp4moviezLinksAction(params: Mp4moviezMigrationPara
         }
       }
 
+      // 2. Movie downloadLinks array
       if (updatedItem.downloadLinks && Array.isArray(updatedItem.downloadLinks)) {
         updatedItem.downloadLinks = updatedItem.downloadLinks.map(link => {
-          if (link.url && isMp4moviezUrl(link.url)) {
+          if (link.url && isMp4moviezUrl(link.url, params.oldDomain)) {
             const newUrl = applyMp4moviezReplacements(link.url, params);
             if (newUrl !== link.url) {
               hasChanges = true;
@@ -1031,6 +1225,64 @@ export async function migrateMp4moviezLinksAction(params: Mp4moviezMigrationPara
             }
           }
           return link;
+        });
+      }
+
+      // 3. TV Series seasons, episodes, multi-qualities, and zip pack links
+      if (updatedItem.seasons && Array.isArray(updatedItem.seasons)) {
+        updatedItem.seasons = updatedItem.seasons.map(season => {
+          let seasonChanged = false;
+          const updatedSeason = { ...season };
+
+          // Season ZIP pack links
+          if (updatedSeason.zipPackLinks && Array.isArray(updatedSeason.zipPackLinks)) {
+            updatedSeason.zipPackLinks = updatedSeason.zipPackLinks.map(zip => {
+              if (zip.url && isMp4moviezUrl(zip.url, params.oldDomain)) {
+                const newUrl = applyMp4moviezReplacements(zip.url, params);
+                if (newUrl !== zip.url) {
+                  hasChanges = true;
+                  seasonChanged = true;
+                  return { ...zip, url: newUrl };
+                }
+              }
+              return zip;
+            });
+          }
+
+          // Season Episodes
+          if (updatedSeason.episodes && Array.isArray(updatedSeason.episodes)) {
+            updatedSeason.episodes = updatedSeason.episodes.map(ep => {
+              let epChanged = false;
+              const updatedEp = { ...ep };
+
+              if (updatedEp.downloadLink && isMp4moviezUrl(updatedEp.downloadLink, params.oldDomain)) {
+                const newUrl = applyMp4moviezReplacements(updatedEp.downloadLink, params);
+                if (newUrl !== updatedEp.downloadLink) {
+                  updatedEp.downloadLink = newUrl;
+                  hasChanges = true;
+                  epChanged = true;
+                }
+              }
+
+              if (updatedEp.downloadLinks && Array.isArray(updatedEp.downloadLinks)) {
+                updatedEp.downloadLinks = updatedEp.downloadLinks.map(link => {
+                  if (link.url && isMp4moviezUrl(link.url, params.oldDomain)) {
+                    const newUrl = applyMp4moviezReplacements(link.url, params);
+                    if (newUrl !== link.url) {
+                      hasChanges = true;
+                      epChanged = true;
+                      return { ...link, url: newUrl };
+                    }
+                  }
+                  return link;
+                });
+              }
+
+              return epChanged ? updatedEp : ep;
+            });
+          }
+
+          return seasonChanged ? updatedSeason : season;
         });
       }
 

@@ -22,7 +22,7 @@ const navItems = [
   { href: '/?type=movie', label: 'Movies', icon: Clapperboard, type: 'movie', genre: null, region: null },
   { href: '/?type=tv', label: 'TV Shows', icon: Tv, type: 'tv', genre: null, region: null },
   { href: '/disclaimer', label: 'Disclaimer', icon: ShieldAlert, type: null, genre: null, region: null },
-  { href: 'https://www.linkshare.online/contact', label: 'Contact', icon: Mail, type: null, genre: null, region: null },
+  { href: 'https://www.linksshare.online/contact', label: 'Contact', icon: Mail, type: null, genre: null, region: null },
 ];
 
 const categories = [
