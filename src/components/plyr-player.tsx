@@ -43,7 +43,6 @@ export default function PlyrPlayer({ source, poster, title, isEmbed }: PlyrPlaye
             if (!video) return;
 
             player = new Plyr(video, {
-                title: title,
                 controls: ['play-large', 'play', 'progress', 'current-time', 'mute', 'volume', 'captions', 'settings', 'pip', 'airplay', 'fullscreen'],
                 settings: ['quality', 'speed', 'loop'],
                 poster: poster,

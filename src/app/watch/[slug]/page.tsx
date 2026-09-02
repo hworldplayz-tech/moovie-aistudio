@@ -28,6 +28,7 @@ import PopupHandler from "@/components/ads/popup-handler";
 import { RequestUploadButton } from "@/components/request-upload-button";
 import { ViewCounter } from "@/components/view-counter";
 import { SeriesEpisodeDownloads } from "@/components/series-episode-downloads";
+import { cleanDownloadLabel } from "@/lib/harvester-utils";
 
 
 import { cache } from 'react';
@@ -107,7 +108,8 @@ const resolveContentFromSlug = cache(async (slug: string) => {
     // For TMDB-only items, fetch TMDB details
     apiContent = await getContentById(contentId, typeOverride, expectedKeywords);
     if (!manualItem && apiContent) {
-      manualItem = manuallyAdded.find(c => isMatch(c, String(apiContent.id), apiContent.title)) || null;
+      const apiItem = apiContent;
+      manualItem = manuallyAdded.find(c => isMatch(c, String(apiItem.id), apiItem.title)) || null;
     }
   }
 
@@ -408,7 +410,7 @@ export default async function WatchPage({ params }: WatchPageProps) {
                           return (
                             <DropdownMenuItem key={index} asChild>
                               <Link href={downloadHref} target={secureEnabled ? "_self" : "_blank"} rel="noopener noreferrer" className="cursor-pointer font-medium">
-                                {link.label || `Link ${index + 1}`}
+                                {cleanDownloadLabel(link.label) || `Download (${index + 1})`}
                               </Link>
                             </DropdownMenuItem>
                           );

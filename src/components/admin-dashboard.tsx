@@ -269,7 +269,7 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
         }
         setMp4PreviewResult(null);
         await handleScanMp4Database();
-        await fetchAdminContent();
+        await fetchDashboardData();
       } else {
         toast({ variant: 'destructive', title: 'Migration Failed', description: res.error || 'Could not migrate Mp4Moviez links.' });
       }
@@ -723,7 +723,7 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
 
         setPreviewResult(null);
         await handleScanDatabase();
-        await fetchAdminContent();
+        await fetchDashboardData();
       } else {
         throw new Error(result.error || 'Migration failed');
       }

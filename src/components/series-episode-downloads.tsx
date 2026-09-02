@@ -11,6 +11,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { cleanDownloadLabel } from '@/lib/harvester-utils';
 
 interface SeriesEpisodeDownloadsProps {
   content: Content;
@@ -148,7 +149,7 @@ export function SeriesEpisodeDownloads({
                   rel="noopener noreferrer"
                 >
                   <Download className="mr-1.5 h-4 w-4" />
-                  {link.label || `Download (${lIdx + 1})`}
+                  {cleanDownloadLabel(link.label) || `Download (${lIdx + 1})`}
                 </Link>
               </Button>
             ))}
@@ -167,7 +168,7 @@ export function SeriesEpisodeDownloads({
             >
               <Download className="mr-1.5 h-4 w-4" />
               {activeEpisodeLinks[0].label && activeEpisodeLinks[0].label !== 'Download'
-                ? activeEpisodeLinks[0].label
+                ? cleanDownloadLabel(activeEpisodeLinks[0].label)
                 : `Download EP ${currentEpisode.episodeNumber}`}
             </Link>
           </Button>
@@ -194,7 +195,7 @@ export function SeriesEpisodeDownloads({
               rel="noopener noreferrer"
             >
               <FileArchive className="mr-1.5 h-4 w-4" />
-              {activeZipLinks[0].label || `Season ${currentSeason.seasonNumber} ZIP`}
+              {activeZipLinks[0].label ? cleanDownloadLabel(activeZipLinks[0].label) : `Season ${currentSeason.seasonNumber} ZIP`}
             </Link>
           </Button>
         ) : (
@@ -219,7 +220,7 @@ export function SeriesEpisodeDownloads({
                     rel="noopener noreferrer"
                     className="cursor-pointer font-medium text-xs sm:text-sm"
                   >
-                    {zLink.label || `Complete Season ZIP (${zIdx + 1})`}
+                    {zLink.label ? cleanDownloadLabel(zLink.label) : `Complete Season ZIP (${zIdx + 1})`}
                   </Link>
                 </DropdownMenuItem>
               ))}

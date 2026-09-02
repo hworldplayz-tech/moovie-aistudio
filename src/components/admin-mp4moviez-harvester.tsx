@@ -48,7 +48,8 @@ import {
   type HarvestedMovieGroup,
   type HarvestRawItem
 } from '@/app/admin/actions';
-import { cleanHarvesterTitle } from '@/lib/harvester-utils';
+import { cleanHarvesterTitle, cleanDownloadLabel } from '@/lib/harvester-utils';
+import { HarvestedLibraryManager } from '@/components/harvested-library-manager';
 import Image from 'next/image';
 
 export default function AdminMp4moviezHarvester() {
@@ -77,6 +78,7 @@ export default function AdminMp4moviezHarvester() {
   const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
   const [importingMovieKey, setImportingMovieKey] = useState<string | null>(null);
   const [isBatchImporting, setIsBatchImporting] = useState<boolean>(false);
+  const [libraryRefreshTrigger, setLibraryRefreshTrigger] = useState<number>(0);
   const [batchProgress, setBatchProgress] = useState<{
     total: number;
     processed: number;
@@ -185,14 +187,15 @@ export default function AdminMp4moviezHarvester() {
           throw new Error('Could not find movie entries. Please upload a valid .json or .txt scraped catalog.');
         }
 
-        // Merge duplicate titles and consolidate multi-quality links
+        // Merge duplicate titles and consolidate multi-quality links, seasons & episodes
         const groupMap = new Map<string, HarvestedMovieGroup>();
 
         for (let idx = 0; idx < moviesList.length; idx++) {
           const m = moviesList[idx];
           const rawTitle = m.title || m.cleanTitle || m.name || `Movie-${idx + 1}`;
-          const { cleanTitle, year, languageTags, isTvSeries } = cleanHarvesterTitle(rawTitle);
-          const groupKey = `${cleanTitle.toLowerCase().trim()}_${year || 'na'}`;
+          const { cleanTitle, year, languageTags, isTvSeries, seasonNumber, episodeNumber, isCompleteSeason } = cleanHarvesterTitle(rawTitle);
+          const typePrefix = isTvSeries ? 'tv' : 'movie';
+          const groupKey = `${typePrefix}_${cleanTitle.toLowerCase().trim()}_${year || 'na'}`;
 
           const rawLinks = m.download_links || m.downloadLinks || m.links || m.qualities || [];
           const links = rawLinks.map((l: any, lIdx: number) => {
@@ -220,25 +223,86 @@ export default function AdminMp4moviezHarvester() {
 
           if (links.length === 0) continue;
 
-          if (groupMap.has(groupKey)) {
-            const existing = groupMap.get(groupKey)!;
-            const existingUrls = new Set(existing.links.map(l => l.url));
-            const newLinks = links.filter((l: any) => !existingUrls.has(l.url));
-            existing.links.push(...newLinks);
-            languageTags.forEach(t => {
-              if (!existing.languageTags.includes(t)) existing.languageTags.push(t);
-            });
-          } else {
+          if (!groupMap.has(groupKey)) {
             groupMap.set(groupKey, {
               key: groupKey,
               cleanTitle,
               rawTitleSample: rawTitle,
               year,
-              languageTags,
+              languageTags: [...languageTags],
               isTvSeries,
-              links,
+              links: [],
+              seasons: isTvSeries ? [] : undefined,
               imported: false
             });
+          }
+
+          const existing = groupMap.get(groupKey)!;
+
+          // Merge flat links
+          for (const l of links) {
+            if (!existing.links.some(el => el.url === l.url)) {
+              existing.links.push(l);
+            }
+          }
+
+          // Merge languages
+          languageTags.forEach(t => {
+            if (!existing.languageTags.includes(t)) existing.languageTags.push(t);
+          });
+
+          // TV Series: consolidate into seasons and episodes
+          if (existing.isTvSeries) {
+            if (!existing.seasons) existing.seasons = [];
+            const sNum = seasonNumber || 1;
+            let sObj = existing.seasons.find(s => s.seasonNumber === sNum);
+            if (!sObj) {
+              sObj = {
+                seasonNumber: sNum,
+                seasonTitle: `Season ${sNum}`,
+                zipPackLinks: [],
+                episodes: []
+              };
+              existing.seasons.push(sObj);
+            }
+
+            for (const l of links) {
+              const cleanLabel = cleanDownloadLabel(l.quality);
+              if (isCompleteSeason) {
+                if (!sObj.zipPackLinks) sObj.zipPackLinks = [];
+                if (!sObj.zipPackLinks.some(z => z.url === l.url)) {
+                  sObj.zipPackLinks.push({ label: cleanLabel, url: l.url });
+                }
+              } else {
+                const epNum = episodeNumber || 1;
+                let epObj = sObj.episodes.find(e => e.episodeNumber === epNum);
+                if (!epObj) {
+                  epObj = {
+                    episodeNumber: epNum,
+                    episodeTitle: `Episode ${epNum}`,
+                    downloadLinks: []
+                  };
+                  sObj.episodes.push(epObj);
+                }
+                if (!epObj.downloadLinks) epObj.downloadLinks = [];
+                if (!epObj.downloadLinks.some(dl => dl.url === l.url)) {
+                  epObj.downloadLinks.push({ label: cleanLabel, url: l.url });
+                }
+              }
+            }
+          }
+        }
+
+        // Post-sort seasons and episodes
+        for (const group of groupMap.values()) {
+          if (group.seasons) {
+            group.seasons.sort((a, b) => a.seasonNumber - b.seasonNumber);
+            let totalEps = 0;
+            for (const s of group.seasons) {
+              s.episodes.sort((a, b) => a.episodeNumber - b.episodeNumber);
+              totalEps += s.episodes.length;
+            }
+            group.totalEpisodesCount = totalEps;
           }
         }
 
@@ -496,6 +560,7 @@ export default function AdminMp4moviezHarvester() {
         setGroupedMovies(prev =>
           prev.map(m => (m.key === movie.key ? { ...m, imported: true } : m))
         );
+        setLibraryRefreshTrigger(t => t + 1);
         toast({
           title: 'Movie Imported!',
           description: `"${movie.cleanTitle}" (${movie.links.length} links) added to your Firestore library.`
@@ -594,6 +659,7 @@ export default function AdminMp4moviezHarvester() {
         await new Promise(resolve => setTimeout(resolve, 50));
       }
 
+      setLibraryRefreshTrigger(t => t + 1);
       toast({
         title: 'Batch Import Finished!',
         description: `Imported: ${totalImported} | Skipped (No TMDB): ${totalSkipped} | Failed: ${totalFailed}`
@@ -607,6 +673,7 @@ export default function AdminMp4moviezHarvester() {
     } finally {
       setIsBatchImporting(false);
       setBatchProgress(null);
+      setLibraryRefreshTrigger(t => t + 1);
     }
   };
 
@@ -1353,6 +1420,30 @@ export default function AdminMp4moviezHarvester() {
 
                     {/* Grouped Qualities & Links */}
                     <CardContent className="pt-0 space-y-2">
+                      {/* TV Series Seasons & Episodes Breakdown if available */}
+                      {movie.isTvSeries && movie.seasons && movie.seasons.length > 0 && (
+                        <div className="p-2.5 rounded-lg bg-purple-50/60 dark:bg-purple-950/30 border border-purple-200/60 dark:border-purple-900/40 space-y-1.5">
+                          <div className="text-[11px] font-semibold text-purple-900 dark:text-purple-200 flex items-center justify-between">
+                            <span className="flex items-center gap-1">
+                              <Tv className="h-3 w-3 text-purple-600" />
+                              Series Structure ({movie.seasons.length} Seasons, {movie.totalEpisodesCount || movie.seasons.reduce((acc, s) => acc + (s.episodes?.length || 0), 0)} Episodes):
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            {movie.seasons.map(s => (
+                              <Badge
+                                key={`season-badge-${movie.key}-${s.seasonNumber}`}
+                                variant="outline"
+                                className="text-[10px] bg-background border-purple-300 dark:border-purple-800 text-purple-700 dark:text-purple-300 font-mono"
+                              >
+                                Season {s.seasonNumber}: {s.episodes?.length || 0} eps
+                                {s.zipPackLinks && s.zipPackLinks.length > 0 ? ' + Zip' : ''}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
                       <div className="p-2.5 rounded-lg bg-muted/40 border border-border/80 space-y-2">
                         <div className="text-[11px] font-semibold text-muted-foreground flex items-center justify-between">
                           <span>Resolved Qualities ({movie.links.length}):</span>
@@ -1638,6 +1729,14 @@ export default function AdminMp4moviezHarvester() {
           </Tabs>
         </div>
       )}
+
+      {/* Harvested Library Manager - Live Database List with Edit & Delete */}
+      <div className="pt-4 border-t border-border/80">
+        <HarvestedLibraryManager
+          refreshTrigger={libraryRefreshTrigger}
+          onDataChanged={() => setLibraryRefreshTrigger(t => t + 1)}
+        />
+      </div>
     </div>
   );
 }

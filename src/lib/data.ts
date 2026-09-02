@@ -12,6 +12,8 @@ export const mockComments: Comment[] = [
         avatarUrl: 'https://picsum.photos/seed/avatar1/200/200',
         text: 'This movie was absolutely breathtaking! The cinematography was stunning.',
         timestamp: 1672531200000,
+        contentId: 'demo',
+        createdAt: new Date().toISOString(),
         replies: [
             {
                 id: 'c1_r1',
@@ -20,6 +22,8 @@ export const mockComments: Comment[] = [
                 avatarUrl: 'https://picsum.photos/seed/avatar2/200/200',
                 text: 'I agree! I was on the edge of my seat the entire time.',
                 timestamp: 1672534800000,
+                contentId: 'demo',
+                createdAt: new Date().toISOString(),
                 replies: []
             }
         ]
@@ -31,6 +35,8 @@ export const mockComments: Comment[] = [
         avatarUrl: 'https://picsum.photos/seed/avatar3/200/200',
         text: 'I couldn\'t get into it. The pacing felt really slow in the beginning.',
         timestamp: 1672617600000,
+        contentId: 'demo',
+        createdAt: new Date().toISOString(),
         replies: []
     }
 ];

@@ -95,8 +95,7 @@ export default function BrowseClient({
                         l.toLowerCase().includes(regionLower)
                     );
                     const matchCountry = (item.country || '').toLowerCase() === regionLower;
-                    const matchOriginalLang = (item.originalLanguage || '').toLowerCase() === regionLower;
-                    if (!matchLang && !matchCountry && !matchOriginalLang) return false;
+                    if (!matchLang && !matchCountry) return false;
                 }
                 if (q && !(item.title || '').toLowerCase().includes(q.toLowerCase().trim())) return false;
                 if (hindiDubbed) {

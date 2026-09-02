@@ -3,8 +3,8 @@
 
 import { getContentFromFirestore, addContentToFirestore, getSiteConfigFromFirestore, saveSiteConfigToFirestore, createPartnerRequest, getSystemUser, DEFAULT_LINK_PRESETS, DEFAULT_SITE_LANGUAGES } from '@/lib/firestore';
 import { getContentById } from '@/lib/tmdb';
-import { cleanHarvesterTitle, normalizeUnicodeTitle } from '@/lib/harvester-utils';
-import type { PartnerRequest, SystemUser } from '@/lib/definitions';
+import { cleanHarvesterTitle, normalizeUnicodeTitle, cleanDownloadLabel, formatQualityString } from '@/lib/harvester-utils';
+import type { PartnerRequest, SystemUser, Content, SeasonData, EpisodeDownload, DownloadLink } from '@/lib/definitions';
 
 export async function getLogoText(): Promise<string> {
   const config = await getSiteConfigFromFirestore();
@@ -1729,6 +1729,8 @@ export type HarvestedMovieGroup = {
   languageTags: string[];
   isTvSeries: boolean;
   links: HarvestedLinkItem[];
+  seasons?: SeasonData[]; // Structured season & episode downloads
+  totalEpisodesCount?: number;
   tmdbMatch?: {
     id: string;
     title: string;
@@ -1774,6 +1776,9 @@ function parseMp4moviezUrlInfo(rawUrl: string, cleanDomain: string, fallbackId: 
   year?: string;
   languageTags: string[];
   isTvSeries: boolean;
+  seasonNumber?: number;
+  episodeNumber?: number;
+  isCompleteSeason?: boolean;
   jioServer?: string;
   fullUrl: string;
 } {
@@ -1795,7 +1800,7 @@ function parseMp4moviezUrlInfo(rawUrl: string, cleanDomain: string, fallbackId: 
       quality = `${quality}p`;
     }
 
-    const { cleanTitle, year, languageTags, isTvSeries } = cleanHarvesterTitle(rawTitle);
+    const { cleanTitle, year, languageTags, isTvSeries, seasonNumber, episodeNumber, isCompleteSeason } = cleanHarvesterTitle(rawTitle);
 
     return {
       id: isNaN(id) ? fallbackId : id,
@@ -1805,11 +1810,14 @@ function parseMp4moviezUrlInfo(rawUrl: string, cleanDomain: string, fallbackId: 
       year,
       languageTags,
       isTvSeries,
+      seasonNumber,
+      episodeNumber,
+      isCompleteSeason,
       jioServer: jio,
       fullUrl
     };
   } catch {
-    const { cleanTitle, year, languageTags, isTvSeries } = cleanHarvesterTitle(`Movie-${fallbackId}`);
+    const { cleanTitle, year, languageTags, isTvSeries, seasonNumber, episodeNumber, isCompleteSeason } = cleanHarvesterTitle(`Movie-${fallbackId}`);
     return {
       id: fallbackId,
       quality: '720p',
@@ -1818,6 +1826,9 @@ function parseMp4moviezUrlInfo(rawUrl: string, cleanDomain: string, fallbackId: 
       year,
       languageTags,
       isTvSeries,
+      seasonNumber,
+      episodeNumber,
+      isCompleteSeason,
       fullUrl
     };
   }
@@ -1942,7 +1953,7 @@ async function inspectMp4moviezSingleId(
 
 /**
  * Harvest a specific ID range (e.g. 59400 to 59420) from Mp4Moviez.
- * Parses titles, separates qualities, groups into movie records, and optionally attaches TMDB metadata.
+ * Parses titles, separates qualities, groups into movie or TV series records, and optionally attaches TMDB metadata.
  */
 export async function harvestMp4moviezBatchAction(params: {
   domain: string;
@@ -1953,7 +1964,7 @@ export async function harvestMp4moviezBatchAction(params: {
   try {
     const cleanDomain = cleanDomainHost(params.domain) || 'mp4moviez.trading';
     const start = Math.max(1, Number(params.startId) || 1);
-    const end = Math.max(start, Math.min(start + 40, Number(params.endId) || start)); // Max 40 IDs per batch step to prevent timeouts
+    const end = Math.max(start, Math.min(start + 40, Number(params.endId) || start)); // Max 40 IDs per batch step
 
     const idList: number[] = [];
     for (let i = start; i <= end; i++) {
@@ -1992,11 +2003,12 @@ export async function harvestMp4moviezBatchAction(params: {
       }
     }
 
-    // Grouping by movie title + year
+    // Grouping by cleanTitle (+ isTvSeries)
     const groupsMap = new Map<string, HarvestedMovieGroup>();
 
     for (const parsed of foundParsed) {
-      const groupKey = `${parsed.cleanTitle.toLowerCase().trim()}_${parsed.year || 'na'}`;
+      const typePrefix = parsed.isTvSeries ? 'tv' : 'movie';
+      const groupKey = `${typePrefix}_${parsed.cleanTitle.toLowerCase().trim()}_${parsed.year || 'na'}`;
       
       if (!groupsMap.has(groupKey)) {
         groupsMap.set(groupKey, {
@@ -2006,7 +2018,8 @@ export async function harvestMp4moviezBatchAction(params: {
           year: parsed.year,
           languageTags: [...parsed.languageTags],
           isTvSeries: parsed.isTvSeries,
-          links: []
+          links: [],
+          seasons: parsed.isTvSeries ? [] : undefined
         });
       }
 
@@ -2018,8 +2031,8 @@ export async function harvestMp4moviezBatchAction(params: {
         }
       }
 
-      // Add link if not already included
-      if (!group.links.some(l => l.id === parsed.id)) {
+      // Add link to flat links list if not already included
+      if (!group.links.some(l => l.id === parsed.id || l.url === parsed.fullUrl)) {
         group.links.push({
           id: parsed.id,
           quality: parsed.quality,
@@ -2027,6 +2040,52 @@ export async function harvestMp4moviezBatchAction(params: {
           rawTitle: parsed.rawTitle,
           jioServer: parsed.jioServer
         });
+      }
+
+      // Handle structured seasons & episodes for TV Series
+      if (group.isTvSeries) {
+        if (!group.seasons) group.seasons = [];
+        const sNum = parsed.seasonNumber || 1;
+        let seasonObj = group.seasons.find(s => s.seasonNumber === sNum);
+        if (!seasonObj) {
+          seasonObj = {
+            seasonNumber: sNum,
+            seasonTitle: `Season ${sNum}`,
+            zipPackLinks: [],
+            episodes: []
+          };
+          group.seasons.push(seasonObj);
+        }
+
+        const cleanLabel = cleanDownloadLabel(parsed.quality);
+
+        if (parsed.isCompleteSeason) {
+          if (!seasonObj.zipPackLinks) seasonObj.zipPackLinks = [];
+          if (!seasonObj.zipPackLinks.some(z => z.url === parsed.fullUrl)) {
+            seasonObj.zipPackLinks.push({
+              label: cleanLabel,
+              url: parsed.fullUrl
+            });
+          }
+        } else {
+          const epNum = parsed.episodeNumber || 1;
+          let epObj = seasonObj.episodes.find(e => e.episodeNumber === epNum);
+          if (!epObj) {
+            epObj = {
+              episodeNumber: epNum,
+              episodeTitle: `Episode ${epNum}`,
+              downloadLinks: []
+            };
+            seasonObj.episodes.push(epObj);
+          }
+          if (!epObj.downloadLinks) epObj.downloadLinks = [];
+          if (!epObj.downloadLinks.some(dl => dl.url === parsed.fullUrl)) {
+            epObj.downloadLinks.push({
+              label: cleanLabel,
+              url: parsed.fullUrl
+            });
+          }
+        }
       }
     }
 
@@ -2037,7 +2096,8 @@ export async function harvestMp4moviezBatchAction(params: {
       '1080p': 2,
       '720p': 3,
       '480p': 4,
-      '360p': 5
+      '360p': 5,
+      '240p': 6
     };
 
     const groupedMovies = Array.from(groupsMap.values()).map(group => {
@@ -2046,6 +2106,17 @@ export async function harvestMp4moviezBatchAction(params: {
         const pB = qualityPriority[b.quality.toLowerCase()] || 10;
         return pA - pB;
       });
+
+      if (group.seasons) {
+        group.seasons.sort((a, b) => a.seasonNumber - b.seasonNumber);
+        let totalEps = 0;
+        for (const s of group.seasons) {
+          s.episodes.sort((a, b) => a.episodeNumber - b.episodeNumber);
+          totalEps += s.episodes.length;
+        }
+        group.totalEpisodesCount = totalEps;
+      }
+
       return group;
     });
 
@@ -2057,7 +2128,6 @@ export async function harvestMp4moviezBatchAction(params: {
           try {
             const tmdbResults = await searchContent(movie.cleanTitle);
             if (tmdbResults && tmdbResults.length > 0) {
-              // Try to find matching year or first high-rated
               let match = tmdbResults[0];
               if (movie.year) {
                 const yearMatch = tmdbResults.find(t => t.releaseDate && t.releaseDate.startsWith(movie.year!));
@@ -2115,7 +2185,11 @@ export async function harvestMp4moviezBatchAction(params: {
 }
 
 /**
- * Import a single Harvested Movie into Firestore database
+ * Import or Incremental Sync a single Harvested Item into Firestore database.
+ * Supports:
+ * - Simple clean labels (Download 720p, Download 480p) without third-party site mentions.
+ * - Multi-season and episode bundling for TV / Web Series.
+ * - Incremental Deduplication: Merges new episodes/links into existing documents, or skips if already up to date.
  */
 export async function importHarvestedMovieAction(
   movie: HarvestedMovieGroup,
@@ -2123,17 +2197,19 @@ export async function importHarvestedMovieAction(
 ): Promise<{
   success: boolean;
   contentId?: string;
+  isNew?: boolean;
+  merged?: boolean;
   skipped?: boolean;
   error?: string;
 }> {
   try {
-    const { addContentToFirestore, getContentByIdFromFirestore } = await import('@/lib/firestore');
+    const { addContentToFirestore, getContentByIdFromFirestore, getContentFromFirestore } = await import('@/lib/firestore');
     const { slugify } = await import('@/lib/utils');
-    const { searchContent, getContentById } = await import('@/lib/tmdb');
+    const { searchContent } = await import('@/lib/tmdb');
 
     let tmdb = movie.tmdbMatch;
 
-    // If TMDB match not present on object, attempt a fresh lookup
+    // If TMDB match not present on object, attempt a lookup
     if (!tmdb && movie.cleanTitle) {
       try {
         const searchRes = await searchContent(movie.cleanTitle);
@@ -2170,42 +2246,175 @@ export async function importHarvestedMovieAction(
     }
 
     const cleanTitle = tmdb?.title || movie.cleanTitle || 'Untitled Movie';
+    const isTv = movie.isTvSeries || tmdb?.type === 'tv' || (movie.seasons && movie.seasons.length > 0);
     const contentId = tmdb?.id ? `tmdb-${tmdb.id}` : `mp4-${movie.links[0]?.id || Date.now()}`;
     const slug = `download-${slugify(cleanTitle)}`;
 
-    // Build multi-quality download links
-    const newDownloadLinks = movie.links.map(l => ({
-      label: `Mp4Moviez (${l.quality.toUpperCase()})${movie.languageTags.length > 0 ? ` [${movie.languageTags.join(', ')}]` : ''}${l.jioServer ? ' [Fast Server]' : ''}`,
+    // Build clean download links (Format: "Download 720p", "Download 480p")
+    const newDownloadLinks: DownloadLink[] = movie.links.map(l => ({
+      label: cleanDownloadLabel(l.quality),
       url: l.url
     }));
 
-    // Check if item already exists in library to preserve existing links and episodes
-    const existingDoc = await getContentByIdFromFirestore(contentId);
+    // Check if item already exists in library (by ID, or by clean Title match)
+    let existingDoc = await getContentByIdFromFirestore(contentId);
+    if (!existingDoc) {
+      const allLibrary = await getContentFromFirestore();
+      const titleMatch = allLibrary.find(item => 
+        item.title.toLowerCase().trim() === cleanTitle.toLowerCase().trim() &&
+        (item.type === (isTv ? 'tv' : 'movie'))
+      );
+      if (titleMatch) {
+        existingDoc = titleMatch;
+      }
+    }
+
+    let isNew = !existingDoc;
+    let isMerged = false;
+
+    // 1. TV SERIES MERGE & BUNDLE LOGIC
+    if (isTv) {
+      let finalSeasons: SeasonData[] = existingDoc?.seasons ? JSON.parse(JSON.stringify(existingDoc.seasons)) : [];
+      let hadNewSeriesLinks = false;
+
+      if (movie.seasons && movie.seasons.length > 0) {
+        for (const newSeason of movie.seasons) {
+          let existingSeason = finalSeasons.find(s => s.seasonNumber === newSeason.seasonNumber);
+          if (!existingSeason) {
+            finalSeasons.push(JSON.parse(JSON.stringify(newSeason)));
+            hadNewSeriesLinks = true;
+          } else {
+            // Merge Zip pack links
+            if (newSeason.zipPackLinks && newSeason.zipPackLinks.length > 0) {
+              if (!existingSeason.zipPackLinks) existingSeason.zipPackLinks = [];
+              for (const zLink of newSeason.zipPackLinks) {
+                if (!existingSeason.zipPackLinks.some(ez => ez.url === zLink.url)) {
+                  existingSeason.zipPackLinks.push({
+                    label: cleanDownloadLabel(zLink.label),
+                    url: zLink.url
+                  });
+                  hadNewSeriesLinks = true;
+                }
+              }
+            }
+
+            // Merge Episodes
+            for (const newEp of newSeason.episodes) {
+              let existingEp = existingSeason.episodes.find(e => e.episodeNumber === newEp.episodeNumber);
+              if (!existingEp) {
+                existingSeason.episodes.push(JSON.parse(JSON.stringify(newEp)));
+                hadNewSeriesLinks = true;
+              } else {
+                if (!existingEp.downloadLinks) existingEp.downloadLinks = [];
+                for (const dLink of (newEp.downloadLinks || [])) {
+                  if (!existingEp.downloadLinks.some(ed => ed.url === dLink.url)) {
+                    existingEp.downloadLinks.push({
+                      label: cleanDownloadLabel(dLink.label),
+                      url: dLink.url
+                    });
+                    hadNewSeriesLinks = true;
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+
+      // Sort seasons and episodes
+      finalSeasons.sort((a, b) => a.seasonNumber - b.seasonNumber);
+      for (const s of finalSeasons) {
+        s.episodes.sort((a, b) => a.episodeNumber - b.episodeNumber);
+      }
+
+      // If document already exists and no new links/episodes were found, skip immediately (0 ms overhead)
+      if (existingDoc && !hadNewSeriesLinks) {
+        return {
+          success: true,
+          contentId: existingDoc.id,
+          skipped: true,
+          error: `Already in library and up to date (${cleanTitle})`
+        };
+      }
+
+      if (existingDoc && hadNewSeriesLinks) {
+        isMerged = true;
+      }
+
+      const contentItem: Content = {
+        id: existingDoc?.id || contentId,
+        title: cleanTitle,
+        description: tmdb?.overview || existingDoc?.description || `Download and watch ${cleanTitle} all seasons and episodes in HD with high speed download links.`,
+        posterPath: tmdb?.posterPath || existingDoc?.posterPath || 'https://picsum.photos/seed/series-poster/500/750',
+        backdropPath: tmdb?.backdropPath || existingDoc?.backdropPath || 'https://picsum.photos/seed/series-backdrop/1280/720',
+        genres: tmdb?.genres && tmdb.genres.length > 0 ? tmdb.genres : (existingDoc?.genres || ['Drama', 'Action']),
+        releaseDate: tmdb?.releaseDate || existingDoc?.releaseDate || movie.year || new Date().getFullYear().toString(),
+        rating: tmdb?.rating || existingDoc?.rating || 7.5,
+        type: 'tv',
+        seasons: finalSeasons,
+        numberOfSeasons: finalSeasons.length,
+        downloadLinks: [],
+        downloadLink: '',
+        isHindiDubbed: movie.languageTags.some(t => t.toLowerCase().includes('hindi')) || existingDoc?.isHindiDubbed || false,
+        customTags: Array.from(new Set([...movie.languageTags, ...(existingDoc?.customTags || [])])),
+        languages: Array.from(new Set([...(movie.languageTags.length > 0 ? movie.languageTags : ['Hindi']), ...(existingDoc?.languages || [])])),
+        quality: Array.from(new Set([...movie.links.map(l => formatQualityString(l.quality)), ...(existingDoc?.quality || [])])),
+        inLibrary: true,
+        slug: existingDoc?.slug || slug,
+        createdAt: existingDoc?.createdAt || new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+
+      const res = await addContentToFirestore(contentItem);
+      if (!res.success) {
+        return { success: false, error: res.error || 'Failed to save TV series to Firestore' };
+      }
+
+      return { success: true, contentId: contentItem.id, isNew, merged: isMerged };
+    }
+
+    // 2. MOVIE MERGE & INCREMENTAL SYNC LOGIC
     let finalDownloadLinks = newDownloadLinks;
+    let hadNewMovieLinks = false;
 
     if (existingDoc && existingDoc.downloadLinks) {
-      // Deduplicate and merge by URL
       const existingUrls = new Set(existingDoc.downloadLinks.map(l => l.url));
       const addedLinks = newDownloadLinks.filter(l => !existingUrls.has(l.url));
+      if (addedLinks.length > 0) {
+        hadNewMovieLinks = true;
+        isMerged = true;
+      }
       finalDownloadLinks = [...existingDoc.downloadLinks, ...addedLinks];
+    } else if (newDownloadLinks.length > 0) {
+      hadNewMovieLinks = true;
+    }
+
+    // If existing movie already has all links present, skip writing
+    if (existingDoc && !hadNewMovieLinks) {
+      return {
+        success: true,
+        contentId: existingDoc.id,
+        skipped: true,
+        error: `Already in library and up to date (${cleanTitle})`
+      };
     }
 
     const contentItem: Content = {
-      id: contentId,
+      id: existingDoc?.id || contentId,
       title: cleanTitle,
-      description: tmdb?.overview || existingDoc?.description || `Download ${cleanTitle} in ${movie.links.map(l => l.quality).join(', ')} HD with multiple high speed download links.`,
-      posterPath: tmdb?.posterPath || existingDoc?.posterPath || 'https://picsum.photos/seed/mp4moviez-poster/500/750',
-      backdropPath: tmdb?.backdropPath || existingDoc?.backdropPath || 'https://picsum.photos/seed/mp4moviez-backdrop/1280/720',
+      description: tmdb?.overview || existingDoc?.description || `Download ${cleanTitle} in ${movie.links.map(l => formatQualityString(l.quality)).join(', ')} HD with high speed download links.`,
+      posterPath: tmdb?.posterPath || existingDoc?.posterPath || 'https://picsum.photos/seed/movie-poster/500/750',
+      backdropPath: tmdb?.backdropPath || existingDoc?.backdropPath || 'https://picsum.photos/seed/movie-backdrop/1280/720',
       genres: tmdb?.genres && tmdb.genres.length > 0 ? tmdb.genres : (existingDoc?.genres || ['Bollywood', 'Action']),
       releaseDate: tmdb?.releaseDate || existingDoc?.releaseDate || movie.year || new Date().getFullYear().toString(),
       rating: tmdb?.rating || existingDoc?.rating || 7.2,
-      type: tmdb?.type || existingDoc?.type || (movie.isTvSeries ? 'tv' : 'movie'),
+      type: 'movie',
       downloadLinks: finalDownloadLinks,
       downloadLink: finalDownloadLinks[0]?.url || existingDoc?.downloadLink || '',
       isHindiDubbed: movie.languageTags.some(t => t.toLowerCase().includes('hindi')) || existingDoc?.isHindiDubbed || false,
-      customTags: Array.from(new Set(['Mp4Moviez', ...movie.languageTags, ...(existingDoc?.customTags || [])])),
+      customTags: Array.from(new Set([...movie.languageTags, ...(existingDoc?.customTags || [])])),
       languages: Array.from(new Set([...(movie.languageTags.length > 0 ? movie.languageTags : ['Hindi']), ...(existingDoc?.languages || [])])),
-      quality: Array.from(new Set([...movie.links.map(l => l.quality), ...(existingDoc?.quality || [])])),
+      quality: Array.from(new Set([...movie.links.map(l => formatQualityString(l.quality)), ...(existingDoc?.quality || [])])),
       inLibrary: true,
       slug: existingDoc?.slug || slug,
       createdAt: existingDoc?.createdAt || new Date().toISOString(),
@@ -2214,10 +2423,10 @@ export async function importHarvestedMovieAction(
 
     const res = await addContentToFirestore(contentItem);
     if (!res.success) {
-      return { success: false, error: res.error || 'Failed to save to Firestore' };
+      return { success: false, error: res.error || 'Failed to save movie to Firestore' };
     }
 
-    return { success: true, contentId };
+    return { success: true, contentId: contentItem.id, isNew, merged: isMerged };
   } catch (error: any) {
     console.error('importHarvestedMovieAction error:', error);
     return { success: false, error: error?.message || 'Failed to import movie' };
@@ -2225,7 +2434,7 @@ export async function importHarvestedMovieAction(
 }
 
 /**
- * Batch import all harvested movies into Firestore with optional TMDB strict matching
+ * Batch import all harvested movies/series into Firestore with smart incremental deduplication
  */
 export async function batchImportHarvestedMoviesAction(
   movies: HarvestedMovieGroup[],
@@ -2233,17 +2442,25 @@ export async function batchImportHarvestedMoviesAction(
 ): Promise<{
   success: boolean;
   importedCount: number;
+  mergedCount: number;
   skippedCount: number;
   failedCount: number;
 }> {
   let importedCount = 0;
+  let mergedCount = 0;
   let skippedCount = 0;
   let failedCount = 0;
 
   for (const movie of movies) {
     const res = await importHarvestedMovieAction(movie, options);
     if (res.success) {
-      importedCount++;
+      if (res.isNew) {
+        importedCount++;
+      } else if (res.merged) {
+        mergedCount++;
+      } else {
+        skippedCount++;
+      }
     } else if (res.skipped) {
       skippedCount++;
     } else {
@@ -2254,10 +2471,44 @@ export async function batchImportHarvestedMoviesAction(
   return {
     success: true,
     importedCount,
+    mergedCount,
     skippedCount,
     failedCount
   };
 }
+
+/**
+ * Get all library content items from Firestore for the Harvester Library Manager
+ */
+export async function getHarvestedLibraryAction(): Promise<{
+  success: boolean;
+  items: Content[];
+  error?: string;
+}> {
+  try {
+    const { getContentFromFirestore } = await import('@/lib/firestore');
+    const items = await getContentFromFirestore();
+    return { success: true, items };
+  } catch (error: any) {
+    console.error('Failed to fetch library content:', error);
+    return { success: false, items: [], error: error?.message || 'Failed to fetch library' };
+  }
+}
+
+/**
+ * Delete a harvested movie or TV series from Firestore library
+ */
+export async function deleteHarvestedContentAction(id: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { deleteContentFromFirestore } = await import('@/lib/firestore');
+    const res = await deleteContentFromFirestore([id]);
+    return { success: res.success };
+  } catch (error: any) {
+    console.error('Failed to delete harvested content:', error);
+    return { success: false, error: error?.message || 'Failed to delete' };
+  }
+}
+
 
 
 

@@ -5,8 +5,8 @@ const UNICODE_SMALL_CAPS_MAP: Record<string, string> = {
   'ꞯ': 'Q', 'ʀ': 'R', 'ꜱ': 'S', 'ᴛ': 'T', 'ᴜ': 'U', 'ᴠ': 'V', 'ᴡ': 'W', 'x': 'X',
   'ʏ': 'Y', 'ᴢ': 'Z',
   'ａ': 'a', 'ｂ': 'b', 'ｃ': 'c', 'ｄ': 'd', 'ｅ': 'e', 'ｆ': 'f', 'ｇ': 'g', 'ｈ': 'h',
-  'ｉ': 'i', 'ｊ': 'j', 'ᴋ': 'k', 'ｌ': 'l', 'ｍ': 'm', 'ｎ': 'n', 'ｏ': 'o', 'ｐ': 'p',
-  'ｑ': 'q', 'ｒ': 'r', 'ｓ': 's', 'ｔ': 't', 'ｕ': 'u', 'ᴠ': 'v', 'ｗ': 'w', 'ｘ': 'x',
+  'ｉ': 'i', 'ｊ': 'j', 'ｋ': 'k', 'ｌ': 'l', 'ｍ': 'm', 'ｎ': 'n', 'ｏ': 'o', 'ｐ': 'p',
+  'ｑ': 'q', 'ｒ': 'r', 'ｓ': 's', 'ｔ': 't', 'ｕ': 'u', 'ｖ': 'v', 'ｗ': 'w', 'ｘ': 'x',
   'ｙ': 'y', 'ｚ': 'z'
 };
 
@@ -15,12 +15,73 @@ export function normalizeUnicodeTitle(text: string): string {
   return text.split('').map(ch => UNICODE_SMALL_CAPS_MAP[ch] || ch).join('');
 }
 
-export function cleanHarvesterTitle(rawSlug: string): {
+/**
+ * Standardize quality strings (e.g. "720" -> "720p", "480" -> "480p", "2160" -> "4K")
+ */
+export function formatQualityString(quality?: string): string {
+  if (!quality) return '720p';
+  const q = quality.toLowerCase().trim();
+  if (q === '4k' || q === '2160' || q === '2160p') return '4K';
+  if (q === '1080' || q === '1080p') return '1080p';
+  if (q === '720' || q === '720p') return '720p';
+  if (q === '480' || q === '480p') return '480p';
+  if (q === '360' || q === '360p') return '360p';
+  if (q === '240' || q === '240p') return '240p';
+  if (q.endsWith('p')) return q;
+  if (/^\d{3,4}$/.test(q)) return `${q}p`;
+  return quality;
+}
+
+/**
+ * Clean & standardize download button labels:
+ * Converts "Mp4Moviez (720P) [Hindi] [Fast Server]" -> "Download 720p"
+ * Strictly removes any mention of mp4 / mp4moviez / server tags.
+ */
+export function cleanDownloadLabel(rawLabelOrQuality?: string, fallbackQuality?: string): string {
+  const quality = formatQualityString(fallbackQuality || '720p');
+  if (!rawLabelOrQuality) {
+    return `Download ${quality}`;
+  }
+
+  const str = String(rawLabelOrQuality)
+    .replace(/Mp4Moviez/gi, '')
+    .replace(/Filmyzilla/gi, '')
+    .replace(/\[Fast Server\]/gi, '')
+    .replace(/\(Fast Server\)/gi, '')
+    .replace(/Fast Server/gi, '')
+    .replace(/Server \d+/gi, '')
+    .trim();
+
+  // Extract explicit resolution if present in text
+  const match = str.match(/\b(2160p|4k|1080p|720p|480p|360p|240p|1080|720|480|360|240)\b/i);
+  if (match) {
+    return `Download ${formatQualityString(match[1])}`;
+  }
+
+  if (/^\d{3,4}p?$/i.test(str)) {
+    return `Download ${formatQualityString(str)}`;
+  }
+
+  // If label is clean already e.g. "Download 720p"
+  if (/^Download\s+\d{3,4}p?$/i.test(str) || /^Download\s+4K$/i.test(str)) {
+    return str;
+  }
+
+  return `Download ${quality}`;
+}
+
+export type ParsedHarvesterTitle = {
   cleanTitle: string;
   year?: string;
   languageTags: string[];
   isTvSeries: boolean;
-} {
+  seasonNumber?: number;
+  episodeNumber?: number;
+  isCompleteSeason?: boolean;
+  episodeTitle?: string;
+};
+
+export function cleanHarvesterTitle(rawSlug: string): ParsedHarvesterTitle {
   if (!rawSlug) {
     return { cleanTitle: 'Unknown Title', languageTags: [], isTvSeries: false };
   }
@@ -38,8 +99,43 @@ export function cleanHarvesterTitle(rawSlug: string): {
     year = yearMatch[1];
   }
 
-  // 3. Detect TV Series indicators
-  const isTvSeries = /\b(Season|Episode|S\d{1,2}|E\d{1,2}|Series|Web Series|TV Series|Anime Series|K-Drama)\b/i.test(text);
+  // 3. Detect TV Series indicators, Season and Episode numbers
+  let isTvSeries = /\b(Season|Episode|S\d{1,2}|E\d{1,2}|Series|Web Series|TV Series|Anime Series|K-Drama|Ep\s*\d+|Part\s*\d+)\b/i.test(text);
+  let seasonNumber: number | undefined = undefined;
+  let episodeNumber: number | undefined = undefined;
+  let isCompleteSeason: boolean | undefined = undefined;
+
+  // Check for S01E02 format
+  const sxxExxMatch = text.match(/\bS(\d{1,2})\s*E(?:p)?(\d{1,3})\b/i);
+  if (sxxExxMatch) {
+    isTvSeries = true;
+    seasonNumber = parseInt(sxxExxMatch[1], 10);
+    episodeNumber = parseInt(sxxExxMatch[2], 10);
+  } else {
+    // Check Season separately: "Season 4", "Season-4", "S04", "Part 2"
+    const seasonMatch = text.match(/\b(?:Season|S|Part)\s*[-_]?\s*(\d{1,2})\b/i);
+    if (seasonMatch) {
+      isTvSeries = true;
+      seasonNumber = parseInt(seasonMatch[1], 10);
+    }
+
+    // Check Episode separately: "Episode 3", "Ep 03", "Ep. 3", "E03"
+    const episodeMatch = text.match(/\b(?:Episode|Ep|E)\s*[-_.]?\s*(\d{1,3})\b/i);
+    if (episodeMatch) {
+      isTvSeries = true;
+      episodeNumber = parseInt(episodeMatch[1], 10);
+    }
+  }
+
+  // Check complete season / zip pack indicator
+  if (/\b(Complete\s*(?:Season|Series|All\s*Episodes)|All\s*Episodes|Full\s*Season|Zip\s*Pack|Zip)\b/i.test(text)) {
+    isTvSeries = true;
+    isCompleteSeason = true;
+  }
+
+  if (isTvSeries && !seasonNumber) {
+    seasonNumber = 1; // Default to Season 1 if series detected without explicit season number
+  }
 
   // 4. Detect language / audio tags
   const languageTags: string[] = [];
@@ -71,7 +167,7 @@ export function cleanHarvesterTitle(rawSlug: string): {
     }
   }
 
-  // 5. Clean out noise words for clean title matching
+  // 5. Clean out noise words for clean series/movie title matching
   let clean = text
     .replace(/^Download\s+/i, '')
     .replace(/\(\s*18[+＋]\s*\)/gi, '')
@@ -79,7 +175,10 @@ export function cleanHarvesterTitle(rawSlug: string): {
     .replace(/\b18[+＋]\b/gi, '')
     .replace(/\(\s*(19\d\d|20\d\d)\s*\)/gi, '')
     .replace(/\b(19\d\d|20\d\d)\b/gi, '')
-    .replace(/\b(Season\s*\d+|S\d{1,2}|Episode\s*\d+|E\d{1,2}|Part\s*\d+|Complete\s*(Series|Anime|Season))\b/gi, '')
+    .replace(/\bS\d{1,2}\s*E(?:p)?\d{1,3}\b/gi, '')
+    .replace(/\b(?:Season|S|Part)\s*[-_]?\s*\d{1,2}\b/gi, '')
+    .replace(/\b(?:Episode|Ep|E)\s*[-_.]?\s*\d{1,3}\b/gi, '')
+    .replace(/\b(Complete\s*(?:Series|Anime|Season|All\s*Episodes)|All\s*Episodes|Full\s*Season|Zip\s*Pack|Zip)\b/gi, '')
     .replace(/\b(Hindi Dubbed|Dual Audio|Multi Audio|Hindi HQ Dubbed|Hindi ORG Dubbed|HQ Dubbed|HQ Fan Dubbed|Unofficial|Dubbed|Hindi Subs|Hindi)\b/gi, '')
     .replace(/\b(English|Bhojpuri|Punjabi|Tamil|Telugu|South Hindi|Bengali|Bangla|Marathi|Matahi|Gujarati|Malayalam|Kannada|Korean|Filipino|Japanese)\b/gi, '')
     .replace(/\b(Akkuott|CinePrime|ULLU|PrimeShots|MoodX|Dzyreplay|DyzrePlay|KahaniPlay|Kahaniplay|BulbulPlay|BulBulPlay|Chuski|NeonX|Mooviplay|Dugru|Triflicks|Funtyy|HotX|CineOn|Atrangii|Bongo|BabluTV|VivaMax|Moovie|Hotbul|Ratri|Makhan|Sigmaseries|Showx|Fugi|Cukkuboo|PrimeXtream|CRF Studioz|IBAMovies|Saathi|9Redmovies|Amazon|Netflix|Hulu|HBO|Marvel|Disney)\b/gi, '')
@@ -98,6 +197,9 @@ export function cleanHarvesterTitle(rawSlug: string): {
     cleanTitle: clean,
     year,
     languageTags,
-    isTvSeries
+    isTvSeries,
+    seasonNumber,
+    episodeNumber,
+    isCompleteSeason
   };
 }

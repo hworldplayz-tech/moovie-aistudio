@@ -132,10 +132,8 @@ async function fetchGenres() {
 
 
 
-function tmdbContentToContent(item: TmdbContent, type: 'movie' | 'tv' | 'person', allGenres: Map<number, string>): Content | null {
-    if (type === 'person') return null;
+function tmdbContentToContent(item: TmdbContent, type: 'movie' | 'tv', allGenres: Map<number | string, string>): Content | null {
     const itemType = item.media_type || type;
-    if (itemType === 'person') return null;
 
     return {
         id: String(item.id),
@@ -151,7 +149,7 @@ function tmdbContentToContent(item: TmdbContent, type: 'movie' | 'tv' | 'person'
     };
 }
 
-async function fetchAndTransformContent(url: string, type: 'movie' | 'tv' | 'person' = 'movie') {
+async function fetchAndTransformContent(url: string, type: 'movie' | 'tv' = 'movie') {
     const { genreMap: allGenres } = await fetchGenres();
     try {
         const response = await fetchSafe(url, { next: { revalidate: 3600 } } as any);

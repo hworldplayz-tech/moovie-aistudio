@@ -135,7 +135,7 @@ export function ContentFormDialog({ children, contentToEdit, onSave, currentUser
         setDownloadMode('seasons');
       } else {
         setSeasons([]);
-        setDownloadMode(contentToEdit.media_type === 'tv' || contentType === 'tv' ? 'seasons' : 'single');
+        setDownloadMode(contentToEdit.type === 'tv' || contentType === 'tv' ? 'seasons' : 'single');
       }
 
       // Initialize Languages and Quality
@@ -380,8 +380,8 @@ export function ContentFormDialog({ children, contentToEdit, onSave, currentUser
                             size="sm"
                             onClick={() => {
                               setShowMp4Generator(!showMp4Generator);
-                              if (!showMp4Generator && !mp4MovieSlug && (previewContent?.title || title)) {
-                                setMp4MovieSlug((previewContent?.title || title).trim().replace(/[^a-zA-Z0-9]+/g, '-'));
+                              if (!showMp4Generator && !mp4MovieSlug && previewContent?.title) {
+                                setMp4MovieSlug(previewContent.title.trim().replace(/[^a-zA-Z0-9]+/g, '-'));
                               }
                             }}
                             className="text-xs bg-rose-500/10 text-rose-600 hover:bg-rose-500/20 border border-rose-200"
@@ -499,7 +499,7 @@ export function ContentFormDialog({ children, contentToEdit, onSave, currentUser
                           const cleanMovieId = mp4Id.trim();
                           const cleanQ = mp4Quality.trim() || '720';
                           const cleanJio = mp4Jio.trim() || 'yes';
-                          const cleanSlug = mp4MovieSlug.trim() || (title ? title.trim().replace(/[^a-zA-Z0-9]+/g, '-') : 'Movie');
+                          const cleanSlug = mp4MovieSlug.trim() || (previewContent?.title ? previewContent.title.trim().replace(/[^a-zA-Z0-9]+/g, '-') : 'Movie');
                           const finalGeneratedUrl = `${cleanDom}/${cleanPth}?id=${cleanMovieId}&q=${cleanQ}&jio=${cleanJio}&title=${cleanSlug}`;
                           const finalTitle = mp4SelectedTitle === '__CUSTOM__'
                             ? (mp4CustomTitle.trim() || 'Download HD (Mp4Moviez)')
