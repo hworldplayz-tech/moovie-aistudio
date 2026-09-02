@@ -255,8 +255,8 @@ export function RelatedChannelsSection({
                                                     {channel.description || 'Watch live channel stream.'}
                                                 </p>
                                                 <div className="flex flex-wrap gap-1 pt-0.5">
-                                                    {(channel.tags || []).slice(0, 3).map(tag => (
-                                                        <Badge key={tag} variant="secondary" className="text-[9px] px-1 py-0 h-3.5">
+                                                    {(channel.tags || []).slice(0, 3).map((tag, tIdx) => (
+                                                        <Badge key={`${tag}-${tIdx}`} variant="secondary" className="text-[9px] px-1 py-0 h-3.5">
                                                             {tag}
                                                         </Badge>
                                                     ))}

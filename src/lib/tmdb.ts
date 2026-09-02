@@ -84,12 +84,12 @@ async function fetchSafe(url: string, options: RequestInit = {}): Promise<Respon
     try {
         const res = await fetch(url, {
             ...options,
-            // Use 15s timeout via AbortSignal if available, else standard fetch
-            signal: typeof AbortSignal !== 'undefined' && 'timeout' in AbortSignal ? (AbortSignal as any).timeout(12000) : undefined,
+            // Use 8s timeout via AbortSignal if available, else standard fetch
+            signal: typeof AbortSignal !== 'undefined' && 'timeout' in AbortSignal ? (AbortSignal as any).timeout(8000) : undefined,
         });
         return res;
     } catch (e: any) {
-        // Suppress abort warnings and rethrow clean
+        // Log cleanly without tripping critical unhandled exceptions
         throw new Error(`Fetch failed for ${url}: ${e?.message || 'network error'}`);
     }
 }
@@ -161,8 +161,8 @@ async function fetchAndTransformContent(url: string, type: 'movie' | 'tv' | 'per
         return results
             .map(item => tmdbContentToContent(item, item.media_type || type, allGenres))
             .filter((item): item is Content => item !== null);
-    } catch (error) {
-        console.error(`Failed to fetch from ${url}:`, error);
+    } catch (error: any) {
+        console.warn(`TMDB fetch note from ${url}:`, error?.message || error);
         return [];
     }
 }
@@ -203,8 +203,8 @@ async function fetchAndTransformSingleContent(url: string, type: 'movie' | 'tv')
             lastAirDate: data.next_episode_to_air?.air_date || data.last_air_date,
             slug,
         };
-    } catch (error) {
-        console.error(`Failed to fetch from ${url}:`, error);
+    } catch (error: any) {
+        console.warn(`TMDB single content fetch note from ${url}:`, error?.message || error);
         return null;
     }
 }
@@ -394,7 +394,11 @@ export async function getAllGenres(): Promise<Genre[]> {
     // Extract unique genres from manual content
     const manualGenresSet = new Set<string>();
     manualContent.forEach(item => {
-        item.genres?.forEach(g => manualGenresSet.add(g));
+        item.genres?.forEach(g => {
+            if (g && typeof g === 'string' && g.trim()) {
+                manualGenresSet.add(g.trim());
+            }
+        });
     });
 
     const tmdbGenreNames = new Set(tmdbGenres?.map(g => g.name.toLowerCase()));
@@ -403,13 +407,19 @@ export async function getAllGenres(): Promise<Genre[]> {
     const customGenres: Genre[] = [];
     manualGenresSet.forEach(gName => {
         if (!tmdbGenreNames.has(gName.toLowerCase())) {
-            // Check if it's not already in customGenres (set handles unique strings, but case sensitivity...)
-            // Just use the name as ID for custom genres
             customGenres.push({ id: gName, name: gName });
         }
     });
 
-    // Combine and sort
-    const all = [...(tmdbGenres || []), ...customGenres];
+    // Combine and deduplicate by name
+    const seen = new Set<string>();
+    const all: Genre[] = [];
+    for (const g of [...(tmdbGenres || []), ...customGenres]) {
+        const key = (g.name || '').toLowerCase();
+        if (!seen.has(key)) {
+            seen.add(key);
+            all.push(g);
+        }
+    }
     return all.sort((a, b) => a.name.localeCompare(b.name));
 }

@@ -68,8 +68,8 @@ function HeroCarouselComponent({ content }: HeroCarouselProps) {
                       <span>{(item.rating || 0).toFixed(1)}</span>
                     </div>
                     <div className="flex flex-wrap gap-1.5">
-                      {item.genres?.slice(0, 3).map(genre => (
-                        <Badge key={genre} variant="secondary" className="text-[11px] sm:text-xs py-0 h-5">{genre}</Badge>
+                      {item.genres?.slice(0, 3).map((genre, gIdx) => (
+                        <Badge key={`${genre}-${gIdx}`} variant="secondary" className="text-[11px] sm:text-xs py-0 h-5">{genre}</Badge>
                       ))}
                     </div>
                   </div>

@@ -46,8 +46,8 @@ export default function LiveTvContent({ channel }: LiveTvContentProps) {
                         <h1 className="text-2xl md:text-4xl font-bold">{channel.title}</h1>
                         <div className="flex items-center gap-2 mt-2 flex-wrap">
                             <Badge>{channel.country}</Badge>
-                            {channel.tags.map(tag => (
-                                <Badge key={tag} variant="outline">{tag}</Badge>
+                            {channel.tags.map((tag, tIdx) => (
+                                <Badge key={`${tag}-${tIdx}`} variant="outline">{tag}</Badge>
                             ))}
                             <ViewCounter itemId={channel.id} type="channel" initialViews={channel.viewsCount || 0} />
                         </div>

@@ -1,5 +1,5 @@
 import { getContentById, getManuallyAddedContent } from '@/lib/tmdb';
-import { getSiteConfigFromFirestore, getContentBySlug } from '@/lib/firestore';
+import { getSiteConfigFromFirestore, getContentBySlug, resolveDownloadUrl } from '@/lib/firestore';
 import { getSecureDownloadSettings } from '@/app/admin/actions';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -219,17 +219,17 @@ export default async function WatchPage({ params }: WatchPageProps) {
     notFound();
   }
 
-  // Combine tags
-  const allTags = [
+  // Combine and deduplicate tags
+  const allTags = Array.from(new Set([
     ...(content.genres || []),
     ...(content.customTags || [])
-  ];
+  ]));
 
   // The primary video source is the custom trailerUrl. If not present, fallback to youtube trailer.
   const primaryVideoSrc = content.trailerUrl || content.youtubeTrailerUrl;
 
   // Fetch secure download settings
-  const { enabled: secureEnabled, globalEnabled, filmyzillaLinksEnabled = true, mp4moviezLinksEnabled = true } = await getSecureDownloadSettings();
+  const { enabled: secureEnabled, globalEnabled, filmyzillaLinksEnabled = true, mp4moviezLinksEnabled = true, activeMp4MoviezDomain = 'mp4moviez.trading' } = await getSecureDownloadSettings();
 
   // Helpers to check provider links
   const isFilmyzillaLink = (url?: string) => !!url && url.toLowerCase().includes('filmyzilla');
@@ -238,19 +238,24 @@ export default async function WatchPage({ params }: WatchPageProps) {
     (url.toLowerCase().includes('dl.php') && (url.toLowerCase().includes('id=') || url.toLowerCase().includes('jio=')))
   );
 
-  // Filter download links if Filmyzilla or Mp4Moviez kill switch is OFF
+  // Filter and resolve download links if Filmyzilla or Mp4Moviez kill switch is OFF
   const rawDownloadLinks = content.downloadLinks || [];
-  const activeDownloadLinks = rawDownloadLinks.filter(link => {
-    if (!filmyzillaLinksEnabled && isFilmyzillaLink(link.url)) {
-      return false;
-    }
-    if (!mp4moviezLinksEnabled && isMp4moviezLink(link.url)) {
-      return false;
-    }
-    return true;
-  });
+  const activeDownloadLinks = rawDownloadLinks
+    .filter(link => {
+      if (!filmyzillaLinksEnabled && isFilmyzillaLink(link.url)) {
+        return false;
+      }
+      if (!mp4moviezLinksEnabled && isMp4moviezLink(link.url)) {
+        return false;
+      }
+      return true;
+    })
+    .map(link => ({
+      ...link,
+      url: resolveDownloadUrl(link.url, activeMp4MoviezDomain)
+    }));
 
-  let activeLegacyLink = content.downloadLink;
+  let activeLegacyLink = content.downloadLink ? resolveDownloadUrl(content.downloadLink, activeMp4MoviezDomain) : undefined;
   if (!filmyzillaLinksEnabled && isFilmyzillaLink(activeLegacyLink)) {
     activeLegacyLink = undefined;
   }
@@ -326,17 +331,17 @@ export default async function WatchPage({ params }: WatchPageProps) {
               </div>
               <Badge variant="outline" className="capitalize">{content.type}</Badge>
               {!content.languages?.length && content.isHindiDubbed && <Badge variant="secondary">Hindi Dubbed</Badge>}
-              {content.languages?.map(lang => (
-                <Badge key={lang} variant="secondary">{lang}</Badge>
+              {content.languages?.map((lang, lIdx) => (
+                <Badge key={`${lang}-${lIdx}`} variant="secondary">{lang}</Badge>
               ))}
-              {content.quality?.map(q => (
-                <Badge key={q} variant="outline" className="border-primary/50">{q}</Badge>
+              {content.quality?.map((q, qIdx) => (
+                <Badge key={`${q}-${qIdx}`} variant="outline" className="border-primary/50">{q}</Badge>
               ))}
               <ViewCounter itemId={content.id} type={content.type} initialViews={content.viewsCount || 0} />
             </div>
             <div className="mt-4 flex flex-wrap gap-2">
-              {allTags.map(tag => (
-                <Badge key={tag} variant="secondary">{tag}</Badge>
+              {allTags.map((tag, tIdx) => (
+                <Badge key={`${tag}-${tIdx}`} variant="secondary">{tag}</Badge>
               ))}
             </div>
             <p className="mt-6 text-foreground/80 leading-relaxed">

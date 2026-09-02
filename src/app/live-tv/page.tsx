@@ -108,8 +108,8 @@ export default function LiveTvPage() {
                                     <CardContent className="p-3 sm:p-4 pt-0">
                                         <p className="text-xs text-muted-foreground line-clamp-2">{channel.description || 'No description available.'}</p>
                                         <div className="flex flex-wrap gap-1 mt-2 sm:mt-3">
-                                            {channel.tags.slice(0, 3).map(tag => (
-                                                <Badge key={tag} variant="outline" className="text-[9px] sm:text-[10px] px-1 sm:px-1.5 py-0 h-4 sm:h-5">{tag}</Badge>
+                                            {channel.tags.slice(0, 3).map((tag, tIdx) => (
+                                                <Badge key={`${tag}-${tIdx}`} variant="outline" className="text-[9px] sm:text-[10px] px-1 sm:px-1.5 py-0 h-4 sm:h-5">{tag}</Badge>
                                             ))}
                                         </div>
                                     </CardContent>
@@ -151,8 +151,8 @@ export default function LiveTvPage() {
                                                 {channel.description || 'Watch live channel stream.'}
                                             </p>
                                             <div className="flex flex-wrap gap-1 pt-1">
-                                                {(channel.tags || []).slice(0, 4).map(tag => (
-                                                    <Badge key={tag} variant="secondary" className="text-[10px] px-1.5 py-0 h-4">
+                                                {(channel.tags || []).slice(0, 4).map((tag, tIdx) => (
+                                                    <Badge key={`${tag}-${tIdx}`} variant="secondary" className="text-[10px] px-1.5 py-0 h-4">
                                                         {tag}
                                                     </Badge>
                                                 ))}

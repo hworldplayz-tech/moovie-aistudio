@@ -141,8 +141,8 @@ function ContentCardComponent({
 
           <div className="mt-2 flex items-center justify-between gap-2 flex-wrap">
             <div className="flex flex-wrap gap-1 sm:gap-1.5">
-              {content.genres?.slice(0, 3).map(g => (
-                <Badge key={g} variant="outline" className="text-[10px] sm:text-xs px-2 py-0 h-5 font-normal">{g}</Badge>
+              {content.genres?.slice(0, 3).map((g, gIdx) => (
+                <Badge key={`${g}-${gIdx}`} variant="outline" className="text-[10px] sm:text-xs px-2 py-0 h-5 font-normal">{g}</Badge>
               ))}
               {content.isHindiDubbed && (
                 <Badge variant="secondary" className="text-[10px] sm:text-xs px-2 py-0 h-5">Hindi Dubbed</Badge>
@@ -182,11 +182,11 @@ function ContentCardComponent({
                 {content.isTmdbOnly && (
                   <Badge variant="outline" className="text-[8px] sm:text-[9px] px-1 h-3.5 sm:h-4 py-0 leading-none bg-amber-500/90 text-slate-950 border-0 font-semibold">Request</Badge>
                 )}
-                {content.quality?.map(q => (
-                  <Badge key={q} variant="secondary" className="text-[8px] sm:text-[9px] px-1 h-3.5 sm:h-4 py-0 leading-none">{q}</Badge>
+                {content.quality?.map((q, qIdx) => (
+                  <Badge key={`${q}-${qIdx}`} variant="secondary" className="text-[8px] sm:text-[9px] px-1 h-3.5 sm:h-4 py-0 leading-none">{q}</Badge>
                 ))}
-                {content.languages?.map(lang => (
-                  <Badge key={lang} variant="default" className="text-[8px] sm:text-[9px] px-1 h-3.5 sm:h-4 py-0 leading-none">{lang}</Badge>
+                {content.languages?.map((lang, lIdx) => (
+                  <Badge key={`${lang}-${lIdx}`} variant="default" className="text-[8px] sm:text-[9px] px-1 h-3.5 sm:h-4 py-0 leading-none">{lang}</Badge>
                 ))}
                 {!content.languages?.length && content.isHindiDubbed && (
                   <Badge variant="secondary" className="text-[8px] sm:text-[9px] px-1 h-3.5 sm:h-4 py-0 leading-none">Hindi Dubbed</Badge>

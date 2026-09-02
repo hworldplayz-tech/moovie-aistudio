@@ -255,6 +255,41 @@ export type SiteConfig = {
     customLanguages?: string[];
     showPublicViewsCount?: boolean;
     headerScripts?: string;
+    activeMp4MoviezDomain?: string;
+}
+
+/**
+ * Dynamically resolves download URLs with the global active domain.
+ * If Mp4Moviez domain changes in future, this dynamically remaps all links instantly.
+ */
+export function resolveDownloadUrl(rawUrl?: string, activeDomain?: string): string {
+    if (!rawUrl || typeof rawUrl !== 'string') return '';
+    const cleanUrl = rawUrl.trim();
+    if (!cleanUrl) return '';
+
+    const domain = (activeDomain || 'mp4moviez.trading').trim().replace(/^https?:\/\//i, '').replace(/\/+$/, '');
+
+    // 1. Relative path format (e.g., /dl.php?id=58280&q=720...)
+    if (cleanUrl.startsWith('/dl.php') || cleanUrl.startsWith('dl.php')) {
+        const path = cleanUrl.startsWith('/') ? cleanUrl : `/${cleanUrl}`;
+        return `https://${domain}${path}`;
+    }
+
+    // 2. Full Mp4Moviez URL format (e.g., https://www.mp4moviez.trading/dl.php?id=58280...)
+    const isMp4MoviezUrl = cleanUrl.includes('mp4moviez') || (cleanUrl.includes('dl.php') && (cleanUrl.includes('id=') || cleanUrl.includes('jio=')));
+    if (isMp4MoviezUrl) {
+        try {
+            const parsed = new URL(cleanUrl);
+            parsed.protocol = 'https:';
+            parsed.host = domain;
+            return parsed.toString();
+        } catch {
+            // Regex fallback for non-standard URLs
+            return cleanUrl.replace(/https?:\/\/[^\/]+/i, `https://${domain}`);
+        }
+    }
+
+    return cleanUrl;
 }
 
 export async function getSiteConfigFromFirestore(): Promise<SiteConfig> {
