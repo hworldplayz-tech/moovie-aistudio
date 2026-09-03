@@ -15,7 +15,7 @@ import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { PlayCircle, Star } from 'lucide-react';
 import Autoplay from 'embla-carousel-autoplay';
-import { slugify } from '@/lib/utils';
+import { slugify, extractContentYear } from '@/lib/utils';
 
 interface HeroCarouselProps {
   content: Content[];
@@ -62,7 +62,7 @@ function HeroCarouselComponent({ content }: HeroCarouselProps) {
                     {item.title || 'Untitled'}
                   </h1>
                   <div className="mt-2 sm:mt-3 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-muted-foreground text-xs sm:text-sm md:text-base">
-                    <span>{(item.releaseDate || 'N/A').split('-')[0]}</span>
+                    <span>{extractContentYear(item) || 'N/A'}</span>
                     <div className="flex items-center gap-1">
                       <Star className="w-3.5 h-3.5 text-yellow-400 fill-yellow-400" />
                       <span>{(item.rating || 0).toFixed(1)}</span>

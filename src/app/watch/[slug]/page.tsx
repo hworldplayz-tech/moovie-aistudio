@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ChevronDown } from "lucide-react";
 import { ShareButton } from "@/components/share-button";
-import { slugify } from "@/lib/utils";
+import { slugify, extractContentYear } from "@/lib/utils";
 import BannerAd from "@/components/ads/banner-ad";
 import NativeAd from "@/components/ads/native-ad";
 import PopupHandler from "@/components/ads/popup-handler";
@@ -343,7 +343,7 @@ export default async function WatchPage({ params }: WatchPageProps) {
               )}
             </h1>
             <div className="flex items-center gap-4 mt-2 text-muted-foreground text-sm flex-wrap">
-              <span>{(content.releaseDate || 'N/A').split('-')[0]}</span>
+              <span>{extractContentYear(content) || 'N/A'}</span>
               <div className="flex items-center gap-1">
                 <Star className="w-4 h-4 text-yellow-400 fill-yellow-400" />
                 <span>{content.rating ? content.rating.toFixed(1) : 'N/A'}</span>

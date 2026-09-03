@@ -4,6 +4,7 @@
 import { db } from './firebase';
 import { collection, doc, setDoc, addDoc, getDocs, deleteDoc, updateDoc, query, orderBy, limit, getDoc, where, increment } from 'firebase/firestore';
 import type { Content, LiveChannel, Comment } from './definitions';
+import { sortContentByLatest } from './utils';
 
 const CONTENT_COLLECTION = 'manually_added_content';
 const LIVE_TV_COLLECTION = 'live_tv_channels';
@@ -135,14 +136,9 @@ export async function getContentFromFirestore(forceRefresh = false): Promise<Con
             ).catch(err => console.error('Failed to clean up untitled content stubs:', err));
         }
 
-        // Client-side sort to handle mixed data
-        // Sort by releaseDate desc (newest first), fallback to createdAt
-        const sorted = content.sort((a, b) => {
-            const dateA = a.releaseDate || a.createdAt || '';
-            const dateB = b.releaseDate || b.createdAt || '';
-            if (dateA === dateB) return 0;
-            return dateB.localeCompare(dateA);
-        });
+        // Client-side sort: items WITH a valid year come first (newest to oldest),
+        // and items WITHOUT a valid year (N/A, missing, invalid) are placed at the very end
+        const sorted = sortContentByLatest(content);
 
         cachedAllContent = sorted;
         cachedAllContentTime = now;

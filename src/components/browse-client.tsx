@@ -9,7 +9,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { HeroCarousel } from "@/components/hero-carousel";
 import RecommendedContent from "@/components/recommended-content";
 import { Button } from "@/components/ui/button";
-import { cn, slugify } from "@/lib/utils";
+import { cn, slugify, sortContentByLatest } from "@/lib/utils";
 import { getPaginationLimit, getSecureDownloadSettings } from "@/app/admin/actions";
 import { LiveTvCarousel } from "@/components/live-tv-carousel";
 import { getLiveChannels } from "@/lib/firestore";
@@ -155,12 +155,14 @@ export default function BrowseClient({
     }, [q, type, genre, region, year, hindiDubbed, initialContent, isFilteredView]);
 
     // Filtered by category tab (All / Movies / TV Series)
+    // Ensures items with a valid year are always on top (newest first), and items without year stay at the end
     const displayedContent = useMemo(() => {
-        return content.filter(item => {
+        const filtered = content.filter(item => {
             if (searchCategoryTab === 'movie' && item.type !== 'movie') return false;
             if (searchCategoryTab === 'tv' && item.type !== 'tv') return false;
             return true;
         });
+        return sortContentByLatest(filtered);
     }, [content, searchCategoryTab]);
 
     const moviesCount = useMemo(() => content.filter(c => c.type === 'movie').length, [content]);

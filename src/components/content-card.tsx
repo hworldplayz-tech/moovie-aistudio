@@ -10,8 +10,7 @@ import { PlayCircle, Pencil, Star, Trash2 } from 'lucide-react';
 import { Badge } from './ui/badge';
 import { ContentFormDialog } from './content-form-dialog';
 import { Button } from './ui/button';
-import { slugify } from '@/lib/utils';
-import { cn } from '@/lib/utils';
+import { cn, slugify, extractContentYear } from '@/lib/utils';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -57,6 +56,7 @@ function ContentCardComponent({
   const optimizedPoster = getOptimizedPoster(content.posterPath, variant === 'list' ? 'w185' : 'w342');
 
   const titleText = content?.title || 'Untitled';
+  const releaseYear = extractContentYear(content);
   const watchUrl = content?.slug
     ? `/watch/${content.slug}`
     : `/watch/${content?.id || 'unknown'}-${slugify(titleText)}`;
@@ -128,7 +128,7 @@ function ContentCardComponent({
             </div>
 
             <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-              <span>{content.releaseDate ? content.releaseDate.split('-')[0] : 'N/A'}</span>
+              <span>{releaseYear ? String(releaseYear) : 'N/A'}</span>
               <span className="capitalize px-1.5 py-0.2 rounded bg-muted text-[10px] text-foreground/80">{content.type === 'tv' ? 'TV Series' : 'Movie'}</span>
               {content.runtime ? <span>{Math.floor(content.runtime / 60)}h {content.runtime % 60}m</span> : null}
               {content.numberOfSeasons ? <span>{content.numberOfSeasons} {content.numberOfSeasons === 1 ? 'Season' : 'Seasons'}</span> : null}
@@ -218,7 +218,7 @@ function ContentCardComponent({
         <h3 className="font-semibold text-[11px] sm:text-xs md:text-sm truncate leading-tight">{content?.title || 'Untitled'}</h3>
         <div className="flex items-center justify-between text-[10px] sm:text-xs text-muted-foreground">
           <div className="flex items-center gap-1">
-            <span>{content.releaseDate ? content.releaseDate.split('-')[0] : ''}</span>
+            <span>{releaseYear ? String(releaseYear) : ''}</span>
           </div>
           <div className="flex items-center gap-0.5">
             <Star className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-yellow-400 fill-yellow-400" />

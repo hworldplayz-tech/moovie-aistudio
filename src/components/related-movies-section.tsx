@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import type { Content } from '@/lib/definitions';
 import { getManuallyAddedContent, getRelatedSettings } from '@/app/admin/actions';
+import { extractContentYear } from '@/lib/utils';
 import { ContentCard } from './content-card';
 import { Button } from './ui/button';
 import { Film, RefreshCw, ChevronDown, Sparkles } from 'lucide-react';
@@ -99,14 +100,19 @@ export function RelatedMoviesSection({
                     score: computeRelevanceScore(candidate, currentContent)
                 }));
 
-                // Sort by score desc, then by releaseDate / createdAt
+                // Sort by score desc, then by year / releaseDate (with-year items before without-year)
                 scoredCandidates.sort((a, b) => {
                     if (b.score !== a.score) {
                         return b.score - a.score;
                     }
-                    const dateA = a.content.releaseDate || a.content.createdAt || '';
-                    const dateB = b.content.releaseDate || b.content.createdAt || '';
-                    return dateB.localeCompare(dateA);
+                    const yearA = extractContentYear(a.content);
+                    const yearB = extractContentYear(b.content);
+                    if (yearA !== null && yearB === null) return -1;
+                    if (yearA === null && yearB !== null) return 1;
+                    if (yearA !== null && yearB !== null && yearA !== yearB) return yearB - yearA;
+                    const createdA = a.content.createdAt || '';
+                    const createdB = b.content.createdAt || '';
+                    return createdB.localeCompare(createdA);
                 });
 
                 setAllRelated(scoredCandidates.map(sc => sc.content));
