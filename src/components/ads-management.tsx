@@ -109,7 +109,7 @@ export default function AdsManagement() {
             setScripts(Array.isArray(scriptsData) ? scriptsData : []);
             setZones(Array.isArray(zonesData) ? zonesData : []);
             if (settingsData && typeof settingsData === 'object' && !Array.isArray(settingsData)) {
-                setSettings(settingsData);
+                setSettings(settingsData as AdSettings);
             }
         } catch (error) {
             console.error('Error fetching ads data:', error);

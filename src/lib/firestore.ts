@@ -564,16 +564,32 @@ export async function deleteLiveChannel(id: string): Promise<{ success: boolean 
  */
 export async function getContentBySlug(slug: string): Promise<Content | null> {
     const cleanSlug = slug.toLowerCase().trim();
+    if (!cleanSlug) return null;
     
     // 1. Fast in-memory check
     if (cachedAllContent && (Date.now() - cachedAllContentTime < CONTENT_CACHE_TTL)) {
         const found = cachedAllContent.find(c => {
             if (!c) return false;
-            if (c.slug && c.slug.toLowerCase() === cleanSlug) return true;
-            if (String(c.id).toLowerCase() === cleanSlug) return true;
+            // Exact custom slug match
+            if (c.slug && c.slug.toLowerCase().trim() === cleanSlug) return true;
+            
+            // Exact ID match
+            const cId = String(c.id || '').toLowerCase().trim();
+            if (cId && cId === cleanSlug) return true;
+            
+            // Clean ID match (e.g. stripped of movie-/tv- prefix)
+            const cleanCId = cId.replace(/^(movie|tv)-/, '');
+            if (cleanCId) {
+                if (cleanSlug === cleanCId || cleanSlug === `movie-${cleanCId}` || cleanSlug === `tv-${cleanCId}`) return true;
+                if (cleanSlug.startsWith(`${cleanCId}-`) || cleanSlug.startsWith(`movie-${cleanCId}-`) || cleanSlug.startsWith(`tv-${cleanCId}-`)) return true;
+            }
+
+            // Exact sanitized title slug match (strict equality only, min 2 chars, never substring includes)
             if (c.title) {
                 const itemSlug = c.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
-                if (cleanSlug.includes(itemSlug) || itemSlug.includes(cleanSlug)) return true;
+                if (itemSlug && itemSlug.length >= 2) {
+                    if (cleanSlug === itemSlug || cleanSlug === `download-${itemSlug}` || cleanSlug === `watch-${itemSlug}`) return true;
+                }
             }
             return false;
         });

@@ -59,25 +59,42 @@ const resolveContentFromSlug = cache(async (slug: string) => {
   // 1. Instant check in memory cached manually added content (< 1ms)
   const manuallyAdded = await getManuallyAddedContent();
 
-  const isMatch = (m: Content, targetId?: string, targetTitle?: string) => {
+  const isMatch = (m: Content, targetId?: string, targetTitle?: string, targetType?: string) => {
     if (!m) return false;
-    const mId = String(m.id);
+    const mId = String(m.id || '').trim();
+    if (!mId) return false;
+
     const cleanMId = mId.replace(/^(movie|tv)-/, '');
-    const cleanContentId = contentId.replace(/^(movie|tv)-/, '');
+    const cleanContentId = contentId ? contentId.replace(/^(movie|tv)-/, '') : '';
     
-    if (
-      mId === slug || 
-      mId === cleanSlug || 
-      mId === contentId || 
-      cleanMId === cleanContentId ||
-      (targetId && (mId === String(targetId) || cleanMId === String(targetId).replace(/^(movie|tv)-/, '')))
-    ) {
+    // Direct ID match
+    if (mId === slug || mId === cleanSlug || (contentId && mId === contentId)) {
       return true;
     }
+
+    // Match by numeric/clean ID (ensure both are non-empty)
+    if (cleanMId && cleanContentId && cleanMId === cleanContentId) {
+      return true;
+    }
+
+    // Match targetId (e.g. TMDB id)
+    if (targetId) {
+      const cleanTargetId = String(targetId).replace(/^(movie|tv)-/, '').trim();
+      if (cleanTargetId && (mId === String(targetId) || cleanMId === cleanTargetId)) {
+        return true;
+      }
+    }
+
+    // Match custom slug
     if (m.slug && (m.slug === slug || m.slug === cleanSlug)) {
       return true;
     }
-    if (targetTitle && m.title && m.title.toLowerCase().trim() === targetTitle.toLowerCase().trim()) {
+
+    // Match by exact title - ensure non-empty and matching media type
+    if (targetTitle && targetTitle.trim().length >= 2 && m.title && m.title.toLowerCase().trim() === targetTitle.toLowerCase().trim()) {
+      if (targetType && m.type && targetType !== m.type) {
+        return false;
+      }
       return true;
     }
     return false;
@@ -109,7 +126,7 @@ const resolveContentFromSlug = cache(async (slug: string) => {
     apiContent = await getContentById(contentId, typeOverride, expectedKeywords);
     if (!manualItem && apiContent) {
       const apiItem = apiContent;
-      manualItem = manuallyAdded.find(c => isMatch(c, String(apiItem.id), apiItem.title)) || null;
+      manualItem = manuallyAdded.find(c => isMatch(c, String(apiItem.id), apiItem.title, apiItem.type)) || null;
     }
   }
 
@@ -154,7 +171,7 @@ const resolveContentFromSlug = cache(async (slug: string) => {
     finalContent.inLibrary === true ||
     finalContent.isTmdbOnly === false ||
     hasDownloadLinks ||
-    manuallyAdded.some(m => isMatch(m, String(finalContent.id), finalContent.title))
+    manuallyAdded.some(m => isMatch(m, String(finalContent.id), finalContent.title, finalContent.type))
   );
 
   const isTmdbOnly = !isInLibrary;
