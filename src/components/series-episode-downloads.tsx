@@ -122,11 +122,23 @@ export function SeriesEpisodeDownloads({
           <option value={-1} className="bg-popover text-popover-foreground">
             {episodes.length === 0 ? 'No Episodes Available' : 'Select Episode'}
           </option>
-          {episodes.map((ep, idx) => (
-            <option key={idx} value={idx} className="bg-popover text-popover-foreground">
-              Episode {ep.episodeNumber}{ep.episodeTitle ? `: ${ep.episodeTitle}` : ''}
-            </option>
-          ))}
+          {episodes.map((ep, idx) => {
+            let label = `Episode ${ep.episodeNumber}`;
+            if (ep.isEpisodeRange || (ep.startEpisode && ep.endEpisode && ep.startEpisode !== ep.endEpisode)) {
+              label = `Episodes ${ep.startEpisode || ep.episodeNumber} to ${ep.endEpisode}`;
+            } else if (ep.episodeTitle) {
+              if (/^episodes?\b/i.test(ep.episodeTitle)) {
+                label = ep.episodeTitle;
+              } else {
+                label = `Episode ${ep.episodeNumber}: ${ep.episodeTitle}`;
+              }
+            }
+            return (
+              <option key={idx} value={idx} className="bg-popover text-popover-foreground">
+                {label}
+              </option>
+            );
+          })}
         </select>
         <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-4 w-4 pointer-events-none text-muted-foreground" />
       </div>
@@ -169,7 +181,9 @@ export function SeriesEpisodeDownloads({
               <Download className="mr-1.5 h-4 w-4" />
               {activeEpisodeLinks[0].label && activeEpisodeLinks[0].label !== 'Download'
                 ? cleanDownloadLabel(activeEpisodeLinks[0].label)
-                : `Download EP ${currentEpisode.episodeNumber}`}
+                : (currentEpisode.isEpisodeRange || (currentEpisode.startEpisode && currentEpisode.endEpisode && currentEpisode.startEpisode !== currentEpisode.endEpisode))
+                  ? `Download EP ${currentEpisode.startEpisode || currentEpisode.episodeNumber}-${currentEpisode.endEpisode}`
+                  : `Download EP ${currentEpisode.episodeNumber}`}
             </Link>
           </Button>
         ) : (

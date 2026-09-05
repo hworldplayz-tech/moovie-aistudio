@@ -193,7 +193,7 @@ export default function AdminMp4moviezHarvester() {
         for (let idx = 0; idx < moviesList.length; idx++) {
           const m = moviesList[idx];
           const rawTitle = m.title || m.cleanTitle || m.name || `Movie-${idx + 1}`;
-          const { cleanTitle, year, languageTags, isTvSeries, seasonNumber, episodeNumber, isCompleteSeason } = cleanHarvesterTitle(rawTitle);
+          const { cleanTitle, year, languageTags, isTvSeries, seasonNumber, episodeNumber, isCompleteSeason, isEpisodeRange, startEpisode, endEpisode } = cleanHarvesterTitle(rawTitle);
           const typePrefix = isTvSeries ? 'tv' : 'movie';
           const groupKey = `${typePrefix}_${cleanTitle.toLowerCase().trim()}_${year || 'na'}`;
 
@@ -274,16 +274,33 @@ export default function AdminMp4moviezHarvester() {
                   sObj.zipPackLinks.push({ label: cleanLabel, url: l.url });
                 }
               } else {
-                const epNum = episodeNumber || 1;
-                let epObj = sObj.episodes.find(e => e.episodeNumber === epNum);
+                const epNum = startEpisode || episodeNumber || 1;
+                const epTitle = isEpisodeRange
+                  ? `Episodes ${startEpisode || epNum} to ${endEpisode || epNum}`
+                  : `Episode ${epNum}`;
+
+                let epObj = sObj.episodes.find(e => 
+                  (isEpisodeRange && e.isEpisodeRange && e.startEpisode === startEpisode && e.endEpisode === endEpisode) ||
+                  e.episodeNumber === epNum
+                );
+
                 if (!epObj) {
                   epObj = {
                     episodeNumber: epNum,
-                    episodeTitle: `Episode ${epNum}`,
+                    episodeTitle: epTitle,
+                    isEpisodeRange: !!isEpisodeRange,
+                    startEpisode,
+                    endEpisode,
                     downloadLinks: []
                   };
                   sObj.episodes.push(epObj);
+                } else if (isEpisodeRange) {
+                  epObj.isEpisodeRange = true;
+                  epObj.startEpisode = startEpisode;
+                  epObj.endEpisode = endEpisode;
+                  epObj.episodeTitle = epTitle;
                 }
+
                 if (!epObj.downloadLinks) epObj.downloadLinks = [];
                 if (!epObj.downloadLinks.some(dl => dl.url === l.url)) {
                   epObj.downloadLinks.push({ label: cleanLabel, url: l.url });
@@ -299,7 +316,7 @@ export default function AdminMp4moviezHarvester() {
             group.seasons.sort((a, b) => a.seasonNumber - b.seasonNumber);
             let totalEps = 0;
             for (const s of group.seasons) {
-              s.episodes.sort((a, b) => a.episodeNumber - b.episodeNumber);
+              s.episodes.sort((a, b) => (a.startEpisode || a.episodeNumber) - (b.startEpisode || b.episodeNumber));
               totalEps += s.episodes.length;
             }
             group.totalEpisodesCount = totalEps;

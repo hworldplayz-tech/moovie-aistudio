@@ -1,10 +1,12 @@
 
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
+import Link from 'next/link';
+import { slugify, extractContentYear } from '@/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
-import { Film, Tv, History, PlusCircle, Loader2, Settings, Trash2, RefreshCw, Search, Edit, Video, DollarSign, Send, CheckCircle, XCircle, Tag, Plus, Eye, BarChart3, Database, Globe, Code, MessageSquare } from 'lucide-react';
+import { Film, Tv, History, PlusCircle, Loader2, Settings, Trash2, RefreshCw, Search, Edit, Video, DollarSign, Send, CheckCircle, XCircle, Tag, Plus, Eye, BarChart3, Database, Globe, Code, MessageSquare, LayoutGrid, List, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, X, ArrowUpDown, Filter, ExternalLink, Pencil } from 'lucide-react';
 import AdminViewsAnalytics from './admin-views-analytics';
 import AdminCommentsManagement from './admin-comments-management';
 import AdminMp4moviezHarvester from './admin-mp4moviez-harvester';
@@ -87,7 +89,6 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
   const [tvShowCount, setTvShowCount] = useState(0);
   const [loadingStats, setLoadingStats] = useState(true);
   const [recentlyAdded, setRecentlyAdded] = useState<Content[]>([]);
-  // filteredContent state removed, derived below
   const [partnerRequests, setPartnerRequests] = useState<PartnerRequest[]>([]);
   const [contentRequests, setContentRequests] = useState<ContentRequest[]>([]);
   const [addingRequestTmdbId, setAddingRequestTmdbId] = useState<string | null>(null);
@@ -95,7 +96,18 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
   const [isSyncing, setIsSyncing] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isDeleting, setIsDeleting] = useState(false);
+  
+  // Instant search, debouncing, filtering and pagination state
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
+  const [contentTypeFilter, setContentTypeFilter] = useState<'all' | 'movie' | 'tv'>('all');
+  const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'title_asc' | 'title_desc' | 'year_desc'>('newest');
+  const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(24);
+  const [jumpToPageInput, setJumpToPageInput] = useState('');
+  const isFetchingRef = useRef(false);
+
   const [localLiveChannels, setLocalLiveChannels] = useState<LiveChannel[]>([]);
   const [liveTvForm, setLiveTvForm] = useState({
     title: '',
@@ -315,15 +327,97 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
   const [newLanguageInput, setNewLanguageInput] = useState('');
   const [isSavingLanguages, setIsSavingLanguages] = useState(false);
 
-  const filteredContent = recentlyAdded.filter(item =>
-    (item.title || '').toLowerCase().includes((searchTerm || '').toLowerCase())
-  );
+  // Debounce search term so typing is 100% instant and responsive without main-thread blocking
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+    }, 200);
+    return () => clearTimeout(handler);
+  }, [searchTerm]);
 
-  const fetchDashboardData = async () => {
+  // Reset to page 1 whenever search, filter, sort or page size changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearchTerm, contentTypeFilter, pageSize, sortBy]);
+
+  // Memoized filter and sort across in-memory content
+  const filteredAndSortedContent = useMemo(() => {
+    let list = recentlyAdded;
+
+    // Filter by Content Type (All / Movie / TV)
+    if (contentTypeFilter !== 'all') {
+      list = list.filter(item => item.type === contentTypeFilter);
+    }
+
+    // Filter by debounced search query
+    const q = (debouncedSearchTerm || '').trim().toLowerCase();
+    if (q) {
+      list = list.filter(item => {
+        const title = (item.title || '').toLowerCase();
+        const id = String(item.id || '').toLowerCase();
+        const year = String(item.releaseDate || '');
+        return title.includes(q) || id.includes(q) || year.includes(q);
+      });
+    }
+
+    // Sort
+    return [...list].sort((a, b) => {
+      if (sortBy === 'newest') {
+        return (b.createdAt || '').localeCompare(a.createdAt || '');
+      }
+      if (sortBy === 'oldest') {
+        return (a.createdAt || '').localeCompare(b.createdAt || '');
+      }
+      if (sortBy === 'title_asc') {
+        return (a.title || '').localeCompare(b.title || '');
+      }
+      if (sortBy === 'title_desc') {
+        return (b.title || '').localeCompare(a.title || '');
+      }
+      if (sortBy === 'year_desc') {
+        return (b.releaseDate || '').localeCompare(a.releaseDate || '');
+      }
+      return 0;
+    });
+  }, [recentlyAdded, contentTypeFilter, debouncedSearchTerm, sortBy]);
+
+  const totalFilteredCount = filteredAndSortedContent.length;
+  const totalPages = Math.max(1, Math.ceil(totalFilteredCount / pageSize));
+  const safePage = Math.min(Math.max(1, currentPage), totalPages);
+
+  // Sliced page data (only 24 items in DOM!)
+  const paginatedContent = useMemo(() => {
+    const start = (safePage - 1) * pageSize;
+    return filteredAndSortedContent.slice(start, start + pageSize);
+  }, [filteredAndSortedContent, safePage, pageSize]);
+
+  // Page selection helpers
+  const pageIds = useMemo(() => paginatedContent.map(i => String(i.id)), [paginatedContent]);
+  const isAllPageSelected = pageIds.length > 0 && pageIds.every(id => selectedIds.includes(id));
+
+  const toggleSelectPage = () => {
+    if (isAllPageSelected) {
+      setSelectedIds(prev => prev.filter(id => !pageIds.includes(id)));
+    } else {
+      setSelectedIds(prev => Array.from(new Set([...prev, ...pageIds])));
+    }
+  };
+
+  const toggleSelectAllMatches = () => {
+    if (selectedIds.length === totalFilteredCount && totalFilteredCount > 0) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(filteredAndSortedContent.map(item => String(item.id)));
+    }
+  };
+
+  const fetchDashboardData = async (forceRefresh: boolean = false) => {
+    if (isFetchingRef.current) return;
+    isFetchingRef.current = true;
     setLoadingStats(true);
     try {
       const [localContent, currentLogoText, currentLimit, secureSettings, presets, langs] = await Promise.all([
-        getManuallyAddedContent(),
+        getManuallyAddedContent(forceRefresh),
         getLogoText(),
         getPaginationLimit(),
         getSecureDownloadSettings(),
@@ -351,7 +445,6 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
       setRelatedLayout(siteConfig.relatedLayout || 'grid');
       setHeaderScripts(siteConfig.headerScripts || '');
 
-
       let myContent = localContent;
 
       // Filter for Partner
@@ -374,8 +467,6 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
       });
 
       setRecentlyAdded(sorted);
-      setRecentlyAdded(sorted);
-      // setFilteredContent(sorted); // Removed
 
       // Calculate stats based on WHAT THEY SEE
       setMovieCount(sorted.filter(c => c.type === 'movie').length);
@@ -386,6 +477,7 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
       toast({ variant: 'destructive', title: "Error", description: "Failed to load dashboard data." });
     } finally {
       setLoadingStats(false);
+      isFetchingRef.current = false;
     }
   };
 
@@ -478,15 +570,11 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
   };
 
 
-  useEffect(() => {
-    fetchDashboardData();
-  }, []);
-
   const onContentUpdated = () => {
-    fetchDashboardData();
+    fetchDashboardData(true);
     // Force a hard reload of the window to reflect changes everywhere
     window.location.reload();
-  }
+  };
 
   const fetchLiveChannelsData = async () => {
     const channels = await getLiveChannels();
@@ -879,12 +967,8 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
   };
 
   const toggleSelectAll = () => {
-    if (selectedIds.length === filteredContent.length) {
-      setSelectedIds([]);
-    } else {
-      setSelectedIds(filteredContent.map(item => String(item.id)));
-    }
-  }
+    toggleSelectPage();
+  };
 
   // filteredContent declaration removed from here
 
@@ -2669,113 +2753,559 @@ export default function AdminDashboard({ user }: { user?: SystemUser }) {
           )}
 
           <div>
-            {/* Content Management Section */}
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-2xl font-bold flex items-center">
-                <History className="mr-2 h-6 w-6" />
-                Recently Added Content
-              </h2>
-              {selectedIds.length > 0 && (
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button variant="destructive" disabled={isDeleting}>
-                      {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
-                      Delete ({selectedIds.length})
-                    </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        This action cannot be undone. This will permanently delete {selectedIds.length} item(s).
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                      <AlertDialogAction onClick={() => handleDelete(selectedIds)}>
-                        Continue
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-              )}
-            </div>
-
-            {loadingStats ? (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-                {[...Array(6)].map((_, i) => (
-                  <div key={i}>
-                    <Skeleton className="aspect-[2/3] w-full rounded-lg" />
-                    <Skeleton className="h-4 w-3/4 mt-2" />
-                    <Skeleton className="h-3 w-1/2 mt-1" />
-                  </div>
-                ))}
+            {/* Content Management Section Header */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+              <div>
+                <h2 className="text-2xl font-bold flex items-center gap-2">
+                  <History className="h-6 w-6 text-primary" />
+                  Manage Content Library
+                  <Badge variant="secondary" className="font-semibold text-xs ml-2">
+                    {totalFilteredCount.toLocaleString()} items
+                  </Badge>
+                </h2>
+                <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
+                  Browse, search, edit, and organize all movies & series with fast pagination.
+                </p>
               </div>
 
-            ) : filteredContent.length > 0 ? (
-              <>
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
-                  <div className="relative w-full max-w-sm">
-                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      placeholder="Search content..."
-                      className="pl-8"
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                    />
-                  </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => fetchDashboardData(true)}
+                  disabled={loadingStats}
+                  className="text-xs font-medium"
+                >
+                  <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${loadingStats ? 'animate-spin' : ''}`} />
+                  Refresh
+                </Button>
 
-                  {user?.role === 'admin' && (
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        id="selectAll"
-                        checked={selectedIds.length > 0 && selectedIds.length === filteredContent.length}
-                        onCheckedChange={toggleSelectAll}
-                        aria-label="Select all"
-                      />
-                      <Label htmlFor="selectAll" className='text-sm font-medium'>
-                        {selectedIds.length > 0 ? `${selectedIds.length} of ${filteredContent.length} selected` : 'Select all'}
-                      </Label>
-                    </div>
-                  )}
-                </div>
+                {selectedIds.length > 0 && (
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="destructive" size="sm" disabled={isDeleting} className="text-xs">
+                        {isDeleting ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Trash2 className="mr-1.5 h-3.5 w-3.5" />}
+                        Delete Selected ({selectedIds.length})
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          This action cannot be undone. This will permanently delete {selectedIds.length} item(s) from your database.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={() => handleDelete(selectedIds)}>
+                          Continue
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                )}
+              </div>
+            </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-                  {filteredContent.map((item, i) => (
-                    <div key={`${item.id}-${i}`} className="relative group">
-                      {user?.role === 'admin' && (
-                        <div className="absolute top-2 left-2 z-30">
-                          <Checkbox
-                            id={`select-${item.id}`}
-                            checked={(selectedIds || []).includes(String(item.id))}
-                            onCheckedChange={(checked) => handleSelectionChange(String(item.id), !!checked)}
-                            className="bg-background/70 border-white/50 data-[state=checked]:bg-primary data-[state=checked]:border-primary-foreground"
-                          />
-                        </div>
-                      )}
-                      <ContentCard
-                        content={item}
-                        showAdminControls={user?.role === 'admin'}
-                        onEditSuccess={onContentUpdated}
-                        onDeleteSuccess={() => handleDelete([String(item.id)])}
-                        currentUser={user}
-                      />
-                    </div>
-                  ))}
-                </div>
-              </>
-            ) : (
-              <div className="space-y-4">
-                <div className="relative w-full max-w-sm">
-                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            {/* Controls Bar: Search, Type Filter Chips, Sort By, View Mode Switcher */}
+            <div className="space-y-3 mb-6 bg-muted/40 p-3.5 rounded-xl border border-border/80">
+              <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+                {/* Instant Responsive Search Input with Clear Button */}
+                <div className="relative flex-1 max-w-md">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
-                    placeholder="Search content..."
-                    className="pl-8"
+                    placeholder="Search by title, TMDB ID, or year..."
+                    className="pl-9 pr-8 text-xs sm:text-sm bg-background"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                   />
+                  {searchTerm && (
+                    <button
+                      type="button"
+                      onClick={() => setSearchTerm('')}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  )}
                 </div>
-                <p className="text-muted-foreground">No content found.</p>
+
+                {/* Sort & View Mode & Page Size */}
+                <div className="flex items-center gap-2 flex-wrap justify-between md:justify-end">
+                  {/* Sort selector */}
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs text-muted-foreground font-medium hidden sm:inline">Sort:</span>
+                    <select
+                      value={sortBy}
+                      onChange={(e) => setSortBy(e.target.value as any)}
+                      className="text-xs bg-background border border-input rounded-md px-2.5 py-1.5 font-medium cursor-pointer"
+                    >
+                      <option value="newest">Newest Added</option>
+                      <option value="oldest">Oldest Added</option>
+                      <option value="title_asc">Title (A - Z)</option>
+                      <option value="title_desc">Title (Z - A)</option>
+                      <option value="year_desc">Release Year</option>
+                    </select>
+                  </div>
+
+                  {/* Page Size selector */}
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs text-muted-foreground font-medium hidden sm:inline">Per page:</span>
+                    <select
+                      value={pageSize}
+                      onChange={(e) => setPageSize(Number(e.target.value))}
+                      className="text-xs bg-background border border-input rounded-md px-2 py-1.5 font-medium cursor-pointer"
+                    >
+                      <option value={24}>24</option>
+                      <option value={48}>48</option>
+                      <option value={96}>96</option>
+                    </select>
+                  </div>
+
+                  {/* Grid vs Table View Mode Switcher */}
+                  <div className="flex items-center border rounded-lg bg-background p-0.5">
+                    <Button
+                      type="button"
+                      variant={viewMode === 'grid' ? 'secondary' : 'ghost'}
+                      size="sm"
+                      onClick={() => setViewMode('grid')}
+                      className="h-7 px-2 text-xs gap-1"
+                      title="Grid Card View"
+                    >
+                      <LayoutGrid className="h-3.5 w-3.5" />
+                      <span className="hidden sm:inline">Grid</span>
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={viewMode === 'table' ? 'secondary' : 'ghost'}
+                      size="sm"
+                      onClick={() => setViewMode('table')}
+                      className="h-7 px-2 text-xs gap-1"
+                      title="Compact Table View"
+                    >
+                      <List className="h-3.5 w-3.5" />
+                      <span className="hidden sm:inline">Table</span>
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Filter Chips & Selection Bar */}
+              <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-border/60">
+                {/* Filter Chips */}
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <Button
+                    type="button"
+                    variant={contentTypeFilter === 'all' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setContentTypeFilter('all')}
+                    className="h-7 text-xs px-2.5 rounded-full"
+                  >
+                    All ({recentlyAdded.length})
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={contentTypeFilter === 'movie' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setContentTypeFilter('movie')}
+                    className="h-7 text-xs px-2.5 rounded-full"
+                  >
+                    🎬 Movies ({movieCount})
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={contentTypeFilter === 'tv' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setContentTypeFilter('tv')}
+                    className="h-7 text-xs px-2.5 rounded-full"
+                  >
+                    📺 TV Shows ({tvShowCount})
+                  </Button>
+                </div>
+
+                {/* Selection helper for Admins */}
+                {user?.role === 'admin' && paginatedContent.length > 0 && (
+                  <div className="flex items-center gap-3 text-xs">
+                    <label className="flex items-center gap-1.5 cursor-pointer text-muted-foreground hover:text-foreground">
+                      <Checkbox
+                        id="selectPageCheck"
+                        checked={isAllPageSelected}
+                        onCheckedChange={toggleSelectPage}
+                        className="h-4 w-4"
+                      />
+                      <span>Select Page ({paginatedContent.length})</span>
+                    </label>
+
+                    {totalFilteredCount > paginatedContent.length && (
+                      <button
+                        type="button"
+                        onClick={toggleSelectAllMatches}
+                        className="text-primary hover:underline font-medium"
+                      >
+                        {selectedIds.length === totalFilteredCount ? 'Deselect All' : `Select All Matches (${totalFilteredCount})`}
+                      </button>
+                    )}
+
+                    {selectedIds.length > 0 && (
+                      <span className="text-primary font-semibold bg-primary/10 px-2 py-0.5 rounded">
+                        {selectedIds.length} selected
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Pagination Top Summary */}
+            {totalFilteredCount > 0 && (
+              <div className="flex items-center justify-between text-xs text-muted-foreground mb-3 px-1">
+                <span>
+                  Showing <strong>{(safePage - 1) * pageSize + 1}</strong> – <strong>{Math.min(safePage * pageSize, totalFilteredCount)}</strong> of <strong>{totalFilteredCount.toLocaleString()}</strong> items
+                </span>
+                <span>
+                  Page <strong>{safePage}</strong> of <strong>{totalPages}</strong>
+                </span>
+              </div>
+            )}
+
+            {/* Main Content Area: Loading vs Empty vs Grid vs Table */}
+            {loadingStats ? (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                {[...Array(pageSize)].map((_, i) => (
+                  <div key={i} className="space-y-2">
+                    <Skeleton className="aspect-[2/3] w-full rounded-lg" />
+                    <Skeleton className="h-4 w-3/4" />
+                    <Skeleton className="h-3 w-1/2" />
+                  </div>
+                ))}
+              </div>
+            ) : totalFilteredCount === 0 ? (
+              <div className="text-center py-12 border rounded-xl bg-card space-y-3">
+                <Search className="h-10 w-10 text-muted-foreground mx-auto opacity-50" />
+                <h3 className="text-base font-semibold">No content found</h3>
+                <p className="text-sm text-muted-foreground max-w-sm mx-auto">
+                  {searchTerm || contentTypeFilter !== 'all'
+                    ? 'No results match your active search or filters. Try adjusting your terms.'
+                    : 'No content has been added to the library yet.'}
+                </p>
+                {(searchTerm || contentTypeFilter !== 'all') && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setSearchTerm('');
+                      setContentTypeFilter('all');
+                    }}
+                    className="text-xs"
+                  >
+                    Clear Search & Filters
+                  </Button>
+                )}
+              </div>
+            ) : viewMode === 'grid' ? (
+              /* GRID VIEW (Only 24 cards rendered at a time!) */
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                {paginatedContent.map((item, i) => (
+                  <div key={`${item.id}-${i}`} className="relative group">
+                    {user?.role === 'admin' && (
+                      <div className="absolute top-2 left-2 z-30">
+                        <Checkbox
+                          id={`select-${item.id}`}
+                          checked={(selectedIds || []).includes(String(item.id))}
+                          onCheckedChange={(checked) => handleSelectionChange(String(item.id), !!checked)}
+                          className="bg-background/80 border-white/50 data-[state=checked]:bg-primary data-[state=checked]:border-primary-foreground shadow-sm"
+                        />
+                      </div>
+                    )}
+                    <ContentCard
+                      content={item}
+                      showAdminControls={user?.role === 'admin'}
+                      onEditSuccess={onContentUpdated}
+                      onDeleteSuccess={() => handleDelete([String(item.id)])}
+                      currentUser={user}
+                    />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              /* COMPACT TABLE VIEW (Ultra-lightweight, 0 lag) */
+              <div className="border rounded-xl bg-card overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      {user?.role === 'admin' && (
+                        <TableHead className="w-10 text-center">
+                          <Checkbox
+                            checked={isAllPageSelected}
+                            onCheckedChange={toggleSelectPage}
+                            aria-label="Select page"
+                          />
+                        </TableHead>
+                      )}
+                      <TableHead className="w-16">Poster</TableHead>
+                      <TableHead>Title & Information</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Links / Seasons</TableHead>
+                      <TableHead>Added Date</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {paginatedContent.map((item) => {
+                      const titleText = item?.title || 'Untitled';
+                      const year = extractContentYear(item);
+                      const watchUrl = item?.slug ? `/watch/${item.slug}` : `/watch/${item?.id || 'unknown'}-${slugify(titleText)}`;
+                      const isSelected = selectedIds.includes(String(item.id));
+
+                      const posterUrl = item.posterPath
+                        ? (item.posterPath.startsWith('http') ? item.posterPath : `https://image.tmdb.org/t/p/w92${item.posterPath}`)
+                        : (item.scrapedPoster || '/placeholder.png');
+
+                      return (
+                        <TableRow key={String(item.id)} className={isSelected ? 'bg-muted/50' : ''}>
+                          {user?.role === 'admin' && (
+                            <TableCell className="text-center">
+                              <Checkbox
+                                checked={isSelected}
+                                onCheckedChange={(checked) => handleSelectionChange(String(item.id), !!checked)}
+                              />
+                            </TableCell>
+                          )}
+                          <TableCell className="py-2">
+                            <img
+                              src={posterUrl}
+                              alt={titleText}
+                              className="w-10 h-14 object-cover rounded shadow-sm bg-muted"
+                              loading="lazy"
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <div className="font-semibold text-sm text-foreground flex items-center gap-1.5">
+                              {titleText}
+                              {year && (
+                                <span className="text-xs text-muted-foreground font-normal">
+                                  ({year})
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-xs text-muted-foreground flex items-center gap-2 mt-0.5">
+                              <span>ID: {item.id}</span>
+                              {item.rating ? (
+                                <span className="text-amber-500 font-medium">★ {item.rating.toFixed(1)}</span>
+                              ) : null}
+                              {item.uploadedBy && (
+                                <span>• By: {item.uploadedBy}</span>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={item.type === 'tv' ? 'default' : 'secondary'} className="capitalize text-[11px]">
+                              {item.type === 'tv' ? 'TV Series' : 'Movie'}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground">
+                            {item.type === 'tv' ? (
+                              <span>
+                                {item.seasons?.length || 0} season(s),{' '}
+                                {item.seasons?.reduce((acc, s) => acc + (s.episodes?.length || 0), 0) || 0} ep(s)
+                              </span>
+                            ) : (
+                              <span>{item.downloadLinks?.length || 0} link(s)</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground">
+                            {item.createdAt ? new Date(item.createdAt).toLocaleDateString() : 'N/A'}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex items-center justify-end gap-1">
+                              <ContentFormDialog contentToEdit={item} onSave={onContentUpdated} currentUser={user}>
+                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0" title="Edit Content">
+                                  <Pencil className="h-4 w-4" />
+                                </Button>
+                              </ContentFormDialog>
+
+                              <Link href={watchUrl} target="_blank" title="View on Site">
+                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                                  <ExternalLink className="h-4 w-4" />
+                                </Button>
+                              </Link>
+
+                              {user?.role === 'admin' && (
+                                <AlertDialog>
+                                  <AlertDialogTrigger asChild>
+                                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-destructive hover:text-destructive" title="Delete">
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  </AlertDialogTrigger>
+                                  <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                      <AlertDialogTitle>Delete "{titleText}"?</AlertDialogTitle>
+                                      <AlertDialogDescription>
+                                        This action cannot be undone. This content will be permanently removed.
+                                      </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                      <AlertDialogAction onClick={() => handleDelete([String(item.id)])}>
+                                        Delete
+                                      </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                  </AlertDialogContent>
+                                </AlertDialog>
+                              )}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+
+            {/* Pagination Controls Bar */}
+            {totalPages > 1 && (
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-6 mt-6 border-t">
+                <div className="text-xs text-muted-foreground order-2 sm:order-1">
+                  Showing <strong>{(safePage - 1) * pageSize + 1}</strong> – <strong>{Math.min(safePage * pageSize, totalFilteredCount)}</strong> of <strong>{totalFilteredCount.toLocaleString()}</strong> items (Page <strong>{safePage}</strong> of <strong>{totalPages}</strong>)
+                </div>
+
+                <div className="flex items-center gap-1.5 order-1 sm:order-2 flex-wrap justify-center">
+                  {/* First Page */}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 w-8 p-0"
+                    disabled={safePage <= 1}
+                    onClick={() => setCurrentPage(1)}
+                    title="First Page"
+                  >
+                    <ChevronsLeft className="h-4 w-4" />
+                  </Button>
+
+                  {/* Previous Page */}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 px-2.5 text-xs gap-1"
+                    disabled={safePage <= 1}
+                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                  >
+                    <ChevronLeft className="h-3.5 w-3.5" />
+                    <span>Prev</span>
+                  </Button>
+
+                  {/* Numeric Page Buttons */}
+                  {(() => {
+                    const pages: (number | string)[] = [];
+                    const maxVisible = 5;
+                    let start = Math.max(1, safePage - 2);
+                    let end = Math.min(totalPages, start + maxVisible - 1);
+
+                    if (end - start + 1 < maxVisible) {
+                      start = Math.max(1, end - maxVisible + 1);
+                    }
+
+                    if (start > 1) {
+                      pages.push(1);
+                      if (start > 2) pages.push('...');
+                    }
+
+                    for (let p = start; p <= end; p++) {
+                      pages.push(p);
+                    }
+
+                    if (end < totalPages) {
+                      if (end < totalPages - 1) pages.push('...');
+                      pages.push(totalPages);
+                    }
+
+                    return pages.map((p, idx) => {
+                      if (p === '...') {
+                        return (
+                          <span key={`dots-${idx}`} className="px-1.5 text-xs text-muted-foreground">
+                            ...
+                          </span>
+                        );
+                      }
+                      const isCurrent = p === safePage;
+                      return (
+                        <Button
+                          key={`page-${p}`}
+                          variant={isCurrent ? 'default' : 'outline'}
+                          size="sm"
+                          className="h-8 w-8 p-0 text-xs font-medium"
+                          onClick={() => setCurrentPage(Number(p))}
+                        >
+                          {p}
+                        </Button>
+                      );
+                    });
+                  })()}
+
+                  {/* Next Page */}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 px-2.5 text-xs gap-1"
+                    disabled={safePage >= totalPages}
+                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                  >
+                    <span>Next</span>
+                    <ChevronRight className="h-3.5 w-3.5" />
+                  </Button>
+
+                  {/* Last Page */}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 w-8 p-0"
+                    disabled={safePage >= totalPages}
+                    onClick={() => setCurrentPage(totalPages)}
+                    title="Last Page"
+                  >
+                    <ChevronsRight className="h-4 w-4" />
+                  </Button>
+
+                  {/* Jump To Page Input */}
+                  {totalPages > 5 && (
+                    <div className="flex items-center gap-1 ml-2">
+                      <Input
+                        type="number"
+                        min={1}
+                        max={totalPages}
+                        placeholder="#"
+                        value={jumpToPageInput}
+                        onChange={(e) => setJumpToPageInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            const p = parseInt(jumpToPageInput, 10);
+                            if (p >= 1 && p <= totalPages) {
+                              setCurrentPage(p);
+                              setJumpToPageInput('');
+                            }
+                          }
+                        }}
+                        className="h-8 w-14 text-xs text-center px-1"
+                      />
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        className="h-8 px-2 text-xs"
+                        onClick={() => {
+                          const p = parseInt(jumpToPageInput, 10);
+                          if (p >= 1 && p <= totalPages) {
+                            setCurrentPage(p);
+                            setJumpToPageInput('');
+                          }
+                        }}
+                      >
+                        Go
+                      </Button>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>

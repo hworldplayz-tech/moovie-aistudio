@@ -79,6 +79,9 @@ export type ParsedHarvesterTitle = {
   episodeNumber?: number;
   isCompleteSeason?: boolean;
   episodeTitle?: string;
+  isEpisodeRange?: boolean;
+  startEpisode?: number;
+  endEpisode?: number;
 };
 
 export function cleanHarvesterTitle(rawSlug: string): ParsedHarvesterTitle {
@@ -99,31 +102,60 @@ export function cleanHarvesterTitle(rawSlug: string): ParsedHarvesterTitle {
     year = yearMatch[1];
   }
 
-  // 3. Detect TV Series indicators, Season and Episode numbers
+  // 3. Detect TV Series indicators, Season, Episode numbers, and Episode Ranges (e.g. "Episodes 1 to 10")
   let isTvSeries = /\b(Season|Episode|S\d{1,2}|E\d{1,2}|Series|Web Series|TV Series|Anime Series|K-Drama|Ep\s*\d+|Part\s*\d+)\b/i.test(text);
   let seasonNumber: number | undefined = undefined;
   let episodeNumber: number | undefined = undefined;
   let isCompleteSeason: boolean | undefined = undefined;
+  let isEpisodeRange: boolean | undefined = undefined;
+  let startEpisode: number | undefined = undefined;
+  let endEpisode: number | undefined = undefined;
+  let episodeTitle: string | undefined = undefined;
 
-  // Check for S01E02 format
-  const sxxExxMatch = text.match(/\bS(\d{1,2})\s*E(?:p)?(\d{1,3})\b/i);
-  if (sxxExxMatch) {
+  // Check for Season + Episode Range format: e.g. S01E01-E10, S1E1-10, S02 Ep 1 to 10
+  const sxxRangeMatch = text.match(/\bS(\d{1,2})\s*[-_]?\s*E(?:p)?(\d{1,3})\s*(?:to|-|–|—)\s*(?:E(?:p)?)?(\d{1,3})\b/i);
+  if (sxxRangeMatch) {
     isTvSeries = true;
-    seasonNumber = parseInt(sxxExxMatch[1], 10);
-    episodeNumber = parseInt(sxxExxMatch[2], 10);
+    seasonNumber = parseInt(sxxRangeMatch[1], 10);
+    startEpisode = parseInt(sxxRangeMatch[2], 10);
+    endEpisode = parseInt(sxxRangeMatch[3], 10);
+    isEpisodeRange = true;
+    episodeNumber = startEpisode;
+    episodeTitle = `Episodes ${startEpisode} to ${endEpisode}`;
   } else {
-    // Check Season separately: "Season 4", "Season-4", "S04", "Part 2"
-    const seasonMatch = text.match(/\b(?:Season|S|Part)\s*[-_]?\s*(\d{1,2})\b/i);
-    if (seasonMatch) {
+    // Check for Single S01E02 format
+    const sxxExxMatch = text.match(/\bS(\d{1,2})\s*E(?:p)?(\d{1,3})\b/i);
+    if (sxxExxMatch) {
       isTvSeries = true;
-      seasonNumber = parseInt(seasonMatch[1], 10);
-    }
+      seasonNumber = parseInt(sxxExxMatch[1], 10);
+      episodeNumber = parseInt(sxxExxMatch[2], 10);
+      episodeTitle = `Episode ${episodeNumber}`;
+    } else {
+      // Check Season separately: "Season 4", "Season-4", "S04", "Part 2"
+      const seasonMatch = text.match(/\b(?:Season|S|Part)\s*[-_]?\s*(\d{1,2})\b/i);
+      if (seasonMatch) {
+        isTvSeries = true;
+        seasonNumber = parseInt(seasonMatch[1], 10);
+      }
 
-    // Check Episode separately: "Episode 3", "Ep 03", "Ep. 3", "E03"
-    const episodeMatch = text.match(/\b(?:Episode|Ep|E)\s*[-_.]?\s*(\d{1,3})\b/i);
-    if (episodeMatch) {
-      isTvSeries = true;
-      episodeNumber = parseInt(episodeMatch[1], 10);
+      // Check Episode Range: "Episodes 1 to 10", "Episode 1-10", "Ep 01 to 08", "Ep 1-8", "Episodes 01-10", "Parts 1 to 5"
+      const epRangeMatch = text.match(/\b(?:Episodes?|Eps?|E|Parts?|Part)\s*[-_.]?\s*(\d{1,3})\s*(?:to|-|–|—)\s*(?:(?:Episodes?|Eps?|E|Parts?|Part)\s*[-_.]?)?(\d{1,3})\b/i);
+      if (epRangeMatch) {
+        isTvSeries = true;
+        startEpisode = parseInt(epRangeMatch[1], 10);
+        endEpisode = parseInt(epRangeMatch[2], 10);
+        isEpisodeRange = true;
+        episodeNumber = startEpisode;
+        episodeTitle = `Episodes ${startEpisode} to ${endEpisode}`;
+      } else {
+        // Check Episode separately: "Episode 3", "Ep 03", "Ep. 3", "E03"
+        const episodeMatch = text.match(/\b(?:Episode|Ep|E)\s*[-_.]?\s*(\d{1,3})\b/i);
+        if (episodeMatch) {
+          isTvSeries = true;
+          episodeNumber = parseInt(episodeMatch[1], 10);
+          episodeTitle = `Episode ${episodeNumber}`;
+        }
+      }
     }
   }
 
@@ -175,6 +207,8 @@ export function cleanHarvesterTitle(rawSlug: string): ParsedHarvesterTitle {
     .replace(/\b18[+＋]\b/gi, '')
     .replace(/\(\s*(19\d\d|20\d\d)\s*\)/gi, '')
     .replace(/\b(19\d\d|20\d\d)\b/gi, '')
+    .replace(/\bS\d{1,2}\s*[-_]?\s*E(?:p)?\d{1,3}\s*(?:to|-|–|—)\s*(?:E(?:p)?)?\d{1,3}\b/gi, '')
+    .replace(/\b(?:Episodes?|Eps?|E|Parts?|Part)\s*[-_.]?\s*\d{1,3}\s*(?:to|-|–|—)\s*(?:(?:Episodes?|Eps?|E|Parts?|Part)\s*[-_.]?)?\d{1,3}\b/gi, '')
     .replace(/\bS\d{1,2}\s*E(?:p)?\d{1,3}\b/gi, '')
     .replace(/\b(?:Season|S|Part)\s*[-_]?\s*\d{1,2}\b/gi, '')
     .replace(/\b(?:Episode|Ep|E)\s*[-_.]?\s*\d{1,3}\b/gi, '')
@@ -200,6 +234,10 @@ export function cleanHarvesterTitle(rawSlug: string): ParsedHarvesterTitle {
     isTvSeries,
     seasonNumber,
     episodeNumber,
-    isCompleteSeason
+    isCompleteSeason,
+    episodeTitle,
+    isEpisodeRange,
+    startEpisode,
+    endEpisode
   };
 }

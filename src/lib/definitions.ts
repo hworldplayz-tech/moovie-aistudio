@@ -8,6 +8,9 @@ export type DownloadLink = {
 export type EpisodeDownload = {
   episodeNumber: number;
   episodeTitle?: string;
+  isEpisodeRange?: boolean;
+  startEpisode?: number;
+  endEpisode?: number;
   downloadLink?: string; // Quick/single fallback link
   downloadLinks?: DownloadLink[]; // Multi-quality links (e.g. 480p, 720p, 1080p)
 };

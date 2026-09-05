@@ -243,10 +243,12 @@ export async function resetSiteLanguages(): Promise<{ success: boolean }> {
   }
 }
 
-export async function getManuallyAddedContent() {
+export async function getManuallyAddedContent(forceRefresh: boolean = false) {
   const { invalidateContentCache, getContentFromFirestore } = await import('@/lib/firestore');
-  invalidateContentCache();
-  return await getContentFromFirestore(true);
+  if (forceRefresh) {
+    invalidateContentCache();
+  }
+  return await getContentFromFirestore(forceRefresh);
 }
 
 export async function addContent(tmdbId: string, contentType: 'movie' | 'tv') {
@@ -1731,6 +1733,8 @@ export type HarvestedMovieGroup = {
   links: HarvestedLinkItem[];
   seasons?: SeasonData[]; // Structured season & episode downloads
   totalEpisodesCount?: number;
+  scrapedPoster?: string;
+  scrapedDescription?: string;
   tmdbMatch?: {
     id: string;
     title: string;
@@ -2068,12 +2072,19 @@ export async function harvestMp4moviezBatchAction(params: {
             });
           }
         } else {
-          const epNum = parsed.episodeNumber || 1;
-          let epObj = seasonObj.episodes.find(e => e.episodeNumber === epNum);
+          const epNum = parsed.startEpisode || parsed.episodeNumber || 1;
+          const isRange = !!parsed.isEpisodeRange;
+          let epObj = seasonObj.episodes.find(e => 
+            (isRange && e.isEpisodeRange && e.startEpisode === parsed.startEpisode && e.endEpisode === parsed.endEpisode) ||
+            e.episodeNumber === epNum
+          );
           if (!epObj) {
             epObj = {
               episodeNumber: epNum,
-              episodeTitle: `Episode ${epNum}`,
+              episodeTitle: parsed.episodeTitle || (isRange ? `Episodes ${parsed.startEpisode} to ${parsed.endEpisode}` : `Episode ${epNum}`),
+              isEpisodeRange: isRange,
+              startEpisode: parsed.startEpisode,
+              endEpisode: parsed.endEpisode,
               downloadLinks: []
             };
             seasonObj.episodes.push(epObj);
@@ -2111,7 +2122,7 @@ export async function harvestMp4moviezBatchAction(params: {
         group.seasons.sort((a, b) => a.seasonNumber - b.seasonNumber);
         let totalEps = 0;
         for (const s of group.seasons) {
-          s.episodes.sort((a, b) => a.episodeNumber - b.episodeNumber);
+          s.episodes.sort((a, b) => (a.startEpisode || a.episodeNumber) - (b.startEpisode || b.episodeNumber));
           totalEps += s.episodes.length;
         }
         group.totalEpisodesCount = totalEps;
@@ -2300,11 +2311,20 @@ export async function importHarvestedMovieAction(
 
             // Merge Episodes
             for (const newEp of newSeason.episodes) {
-              let existingEp = existingSeason.episodes.find(e => e.episodeNumber === newEp.episodeNumber);
+              let existingEp = existingSeason.episodes.find(e => 
+                (newEp.isEpisodeRange && e.isEpisodeRange && e.startEpisode === newEp.startEpisode && e.endEpisode === newEp.endEpisode) ||
+                e.episodeNumber === newEp.episodeNumber
+              );
               if (!existingEp) {
                 existingSeason.episodes.push(JSON.parse(JSON.stringify(newEp)));
                 hadNewSeriesLinks = true;
               } else {
+                if (newEp.isEpisodeRange) {
+                  existingEp.isEpisodeRange = true;
+                  existingEp.startEpisode = newEp.startEpisode;
+                  existingEp.endEpisode = newEp.endEpisode;
+                  if (newEp.episodeTitle) existingEp.episodeTitle = newEp.episodeTitle;
+                }
                 if (!existingEp.downloadLinks) existingEp.downloadLinks = [];
                 for (const dLink of (newEp.downloadLinks || [])) {
                   if (!existingEp.downloadLinks.some(ed => ed.url === dLink.url)) {
@@ -2324,7 +2344,7 @@ export async function importHarvestedMovieAction(
       // Sort seasons and episodes
       finalSeasons.sort((a, b) => a.seasonNumber - b.seasonNumber);
       for (const s of finalSeasons) {
-        s.episodes.sort((a, b) => a.episodeNumber - b.episodeNumber);
+        s.episodes.sort((a, b) => (a.startEpisode || a.episodeNumber) - (b.startEpisode || b.episodeNumber));
       }
 
       // If document already exists and no new links/episodes were found, skip immediately (0 ms overhead)
@@ -2344,9 +2364,9 @@ export async function importHarvestedMovieAction(
       const contentItem: Content = {
         id: existingDoc?.id || contentId,
         title: cleanTitle,
-        description: tmdb?.overview || existingDoc?.description || `Download and watch ${cleanTitle} all seasons and episodes in HD with high speed download links.`,
-        posterPath: tmdb?.posterPath || existingDoc?.posterPath || 'https://picsum.photos/seed/series-poster/500/750',
-        backdropPath: tmdb?.backdropPath || existingDoc?.backdropPath || 'https://picsum.photos/seed/series-backdrop/1280/720',
+        description: tmdb?.overview || movie.scrapedDescription || existingDoc?.description || `Download and watch ${cleanTitle} all seasons and episodes in HD with high speed download links.`,
+        posterPath: tmdb?.posterPath || movie.scrapedPoster || existingDoc?.posterPath || 'https://picsum.photos/seed/series-poster/500/750',
+        backdropPath: tmdb?.backdropPath || movie.scrapedPoster || existingDoc?.backdropPath || 'https://picsum.photos/seed/series-backdrop/1280/720',
         genres: tmdb?.genres && tmdb.genres.length > 0 ? tmdb.genres : (existingDoc?.genres || ['Drama', 'Action']),
         releaseDate: tmdb?.releaseDate || existingDoc?.releaseDate || movie.year || new Date().getFullYear().toString(),
         rating: tmdb?.rating || existingDoc?.rating || 7.5,
@@ -2402,9 +2422,9 @@ export async function importHarvestedMovieAction(
     const contentItem: Content = {
       id: existingDoc?.id || contentId,
       title: cleanTitle,
-      description: tmdb?.overview || existingDoc?.description || `Download ${cleanTitle} in ${movie.links.map(l => formatQualityString(l.quality)).join(', ')} HD with high speed download links.`,
-      posterPath: tmdb?.posterPath || existingDoc?.posterPath || 'https://picsum.photos/seed/movie-poster/500/750',
-      backdropPath: tmdb?.backdropPath || existingDoc?.backdropPath || 'https://picsum.photos/seed/movie-backdrop/1280/720',
+      description: tmdb?.overview || movie.scrapedDescription || existingDoc?.description || `Download ${cleanTitle} in ${movie.links.map(l => formatQualityString(l.quality)).join(', ')} HD with high speed download links.`,
+      posterPath: tmdb?.posterPath || movie.scrapedPoster || existingDoc?.posterPath || 'https://picsum.photos/seed/movie-poster/500/750',
+      backdropPath: tmdb?.backdropPath || movie.scrapedPoster || existingDoc?.backdropPath || 'https://picsum.photos/seed/movie-backdrop/1280/720',
       genres: tmdb?.genres && tmdb.genres.length > 0 ? tmdb.genres : (existingDoc?.genres || ['Bollywood', 'Action']),
       releaseDate: tmdb?.releaseDate || existingDoc?.releaseDate || movie.year || new Date().getFullYear().toString(),
       rating: tmdb?.rating || existingDoc?.rating || 7.2,
